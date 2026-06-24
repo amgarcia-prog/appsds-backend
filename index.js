@@ -252,7 +252,7 @@ app.get('/api/formacion/pendientes', async (req, res) => {
   if (!ciudad) return res.status(400).json([])
   const { data, error } = await supabase
     .from('registros')
-    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, fecha_nacimiento, fecha_inicio_servicio, por_que_consagrarse, ciudad_donde_sirve, estado_proceso, estado_consagracion, foto_url, created_at')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, fecha_nacimiento, fecha_inicio_servicio, fecha_consagracion, por_que_consagrarse, ciudad_donde_sirve, estado_proceso, estado_consagracion, foto_url, created_at')
     .eq('estado_proceso', 'pendiente_formacion')
     .ilike('ciudad_donde_sirve', ciudad)
     .order('created_at', { ascending: false })
