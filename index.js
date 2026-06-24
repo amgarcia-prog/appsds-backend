@@ -567,6 +567,33 @@ app.get('/api/obras/miembros-punto', async (req, res) => {
   res.json(filtrados)
 })
 
+// Adicionar coordinador a un punto de servicio
+app.put('/api/obras/miembro/:id/adicionar-coordinador', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json({ ok: false })
+  const { punto } = req.body
+  if (!punto) return res.status(400).json({ ok: false, mensaje: 'Falta el punto' })
+  const { data: reg } = await supabase.from('registros').select('puntos_coordina').eq('id', req.params.id).single()
+  const actual = reg?.puntos_coordina || []
+  if (actual.includes(punto)) return res.json({ ok: true })
+  const { error } = await supabase.from('registros').update({ puntos_coordina: [...actual, punto], es_coordinador: 'Sí' }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Quitar coordinador de un punto de servicio
+app.put('/api/obras/miembro/:id/quitar-coordinador', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json({ ok: false })
+  const { punto } = req.body
+  if (!punto) return res.status(400).json({ ok: false, mensaje: 'Falta el punto' })
+  const { data: reg } = await supabase.from('registros').select('puntos_coordina').eq('id', req.params.id).single()
+  const nuevos = (reg?.puntos_coordina || []).filter(p => p !== punto)
+  const { error } = await supabase.from('registros').update({ puntos_coordina: nuevos, es_coordinador: nuevos.length > 0 ? 'Sí' : 'No' }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 // Buscar miembro por nombre o identificación en una ciudad
 app.get('/api/obras/buscar-miembro', async (req, res) => {
   const token = req.headers['x-miembro-id']
