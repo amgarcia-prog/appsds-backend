@@ -534,6 +534,26 @@ app.delete('/api/admin/puntos-servicio/:id', verificarAdmin, async (req, res) =>
 
 // ── Obras y Servicios ──────────────────────────────────────────────────────
 
+// Crear punto de servicio desde panel de obras
+app.post('/api/obras/puntos-servicio', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json({ ok: false })
+  const { nombre, ciudad, pais } = req.body
+  if (!nombre?.trim() || !ciudad || !pais) return res.status(400).json({ ok: false, mensaje: 'Faltan datos' })
+  const { error } = await supabase.from('puntos_servicio').insert({ nombre: nombre.trim(), ciudad, pais, activo: true })
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Eliminar punto de servicio desde panel de obras
+app.delete('/api/obras/puntos-servicio/:id', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json({ ok: false })
+  const { error } = await supabase.from('puntos_servicio').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 // Puntos de servicio de una ciudad con conteo de miembros
 app.get('/api/obras/puntos-servicio', async (req, res) => {
   const token = req.headers['x-miembro-id']
