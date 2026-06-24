@@ -559,11 +559,12 @@ app.get('/api/obras/miembros-punto', async (req, res) => {
   const { punto, ciudad } = req.query
   if (!punto || !ciudad) return res.status(400).json([])
   const { data } = await supabase.from('registros')
-    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, estado_consagracion, es_coordinador, puntos_coordina')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, estado_consagracion, es_coordinador, puntos_coordina, puntos_servicio')
     .ilike('ciudad_donde_sirve', ciudad)
-    .contains('puntos_servicio', [punto])
-    .order('primer_apellido')
-  res.json(data || [])
+  const filtrados = (data || [])
+    .filter(m => (m.puntos_servicio || []).includes(punto))
+    .sort((a, b) => (a.primer_apellido || '').localeCompare(b.primer_apellido || ''))
+  res.json(filtrados)
 })
 
 // Buscar miembro por nombre o identificación en una ciudad
