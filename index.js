@@ -82,8 +82,8 @@ app.post('/api/registro', async (req, res) => {
     responsabilidades_consejo: datos.responsabilidadesConsejo,
     estado_consagracion: datos.estadoConsagracion,
     fecha_inicio_servicio: datos.fechaInicioServicio || null,
-    por_que_consagrarse: datos.porQueConsagrarse,
-    fecha_consagracion: datos.fechaConsagracion || null,
+    motivacion_paciente: datos.porQueConsagrarse,
+    fecha_consagracion_paciente: datos.fechaConsagracion || null,
     fecha_inicio_encargo: datos.fechaInicioEncargo || null,
     pertenece_otra_comunidad: datos.perteneceOtraComunidad,
     responsabilidades_pilar: datos.responsabilidadesPilar,
@@ -252,7 +252,7 @@ app.get('/api/formacion/pendientes', async (req, res) => {
   if (!ciudad) return res.status(400).json([])
   const { data, error } = await supabase
     .from('registros')
-    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, fecha_nacimiento, fecha_inicio_servicio, fecha_consagracion, por_que_consagrarse, ciudad_donde_sirve, estado_proceso, estado_consagracion, foto_url, created_at')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, fecha_nacimiento, fecha_inicio_servicio, fecha_consagracion_paciente, fecha_consagracion_servita, motivacion_paciente, motivacion_servita, ciudad_donde_sirve, estado_proceso, estado_consagracion, foto_url, created_at')
     .eq('estado_proceso', 'pendiente_formacion')
     .ilike('ciudad_donde_sirve', ciudad)
     .order('created_at', { ascending: false })
@@ -266,7 +266,7 @@ app.get('/api/formacion/aprobados-formacion', async (req, res) => {
   if (!ciudad) return res.status(400).json([])
   const { data, error } = await supabase
     .from('registros')
-    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, fecha_nacimiento, fecha_inicio_servicio, por_que_consagrarse, ciudad_donde_sirve, estado_proceso, estado_consagracion, concepto_formacion, historial_formacion, concepto_consejo, fecha_reunion_consejo, foto_url, created_at')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, fecha_nacimiento, fecha_inicio_servicio, fecha_consagracion_paciente, fecha_consagracion_servita, motivacion_paciente, motivacion_servita, ciudad_donde_sirve, estado_proceso, estado_consagracion, concepto_formacion, historial_formacion, concepto_consejo, fecha_reunion_consejo, foto_url, created_at')
     .eq('estado_proceso', 'formacion_aprobada')
     .ilike('ciudad_donde_sirve', ciudad)
     .order('created_at', { ascending: false })
@@ -305,7 +305,8 @@ app.put('/api/formacion/consagrar-pacientes', async (req, res) => {
     const esPaciente = reg?.estado_consagracion === 'paciente'
     const nuevoEstado = esPaciente ? 'consagrado_servita' : 'consagrado_paciente'
     const nuevoNivel = esPaciente ? 'servita' : 'paciente'
-    const actualizacion = { estado_proceso: nuevoEstado, estado_consagracion: nuevoNivel, fecha_consagracion, fecha_estado: new Date().toISOString() }
+    const campofecha = esPaciente ? 'fecha_consagracion_servita' : 'fecha_consagracion_paciente'
+    const actualizacion = { estado_proceso: nuevoEstado, estado_consagracion: nuevoNivel, [campofecha]: fecha_consagracion, fecha_estado: new Date().toISOString() }
     if (acta_url) actualizacion.acta_consagracion_url = acta_url
     const { error } = await supabase.from('registros').update(actualizacion).eq('id', id)
     if (error) { errores.push(id); continue }
@@ -322,11 +323,12 @@ app.post('/api/miembro/solicitar-consagracion', async (req, res) => {
   if (!token) return res.status(401).json({ ok: false, mensaje: 'No autorizado' })
   const { motivacion, otra_comunidad } = req.body
   if (!motivacion?.trim()) return res.status(400).json({ ok: false, mensaje: 'La motivación es obligatoria' })
-  const { data: reg } = await supabase.from('registros').select('estado_proceso, primer_nombre, primer_apellido').eq('id', token).single()
+  const { data: reg } = await supabase.from('registros').select('estado_proceso, estado_consagracion, primer_nombre, primer_apellido').eq('id', token).single()
   if (!reg) return res.status(404).json({ ok: false, mensaje: 'No encontrado' })
+  const campoMotivacion = reg.estado_consagracion === 'paciente' ? 'motivacion_servita' : 'motivacion_paciente'
   const actualizacionSolicitud = {
     estado_proceso: 'pendiente_formacion',
-    por_que_consagrarse: motivacion.trim(),
+    [campoMotivacion]: motivacion.trim(),
     fecha_estado: new Date().toISOString(),
   }
   if (otra_comunidad) actualizacionSolicitud.otra_comunidad = otra_comunidad
@@ -342,7 +344,7 @@ app.get('/api/formacion/cumple-requisitos', async (req, res) => {
   if (!ciudad) return res.status(400).json([])
   const { data, error } = await supabase
     .from('registros')
-    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, fecha_nacimiento, fecha_inicio_servicio, por_que_consagrarse, ciudad_donde_sirve, estado_proceso, estado_consagracion, concepto_formacion, historial_formacion, foto_url, created_at')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, fecha_nacimiento, fecha_inicio_servicio, fecha_consagracion_paciente, fecha_consagracion_servita, motivacion_paciente, motivacion_servita, ciudad_donde_sirve, estado_proceso, estado_consagracion, concepto_formacion, historial_formacion, foto_url, created_at')
     .in('estado_proceso', ['cumple_requisitos', 'formacion_no_aprobada'])
     .ilike('ciudad_donde_sirve', ciudad)
     .order('created_at', { ascending: false })
