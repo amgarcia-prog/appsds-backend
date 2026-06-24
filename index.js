@@ -199,6 +199,7 @@ app.post('/api/login', async (req, res) => {
   const roles = []
   const resps = data.responsabilidades_consejo || []
   if (resps.includes('Formación y consagraciones')) roles.push('responsable_formacion')
+  if (resps.includes('Obras y servicios')) roles.push('responsable_obras')
 
   res.json({
     ok: true,
@@ -527,6 +528,81 @@ app.put('/api/admin/puntos-servicio/:id', verificarAdmin, async (req, res) => {
 
 app.delete('/api/admin/puntos-servicio/:id', verificarAdmin, async (req, res) => {
   const { error } = await supabase.from('puntos_servicio').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// ── Obras y Servicios ──────────────────────────────────────────────────────
+
+// Puntos de servicio de una ciudad con conteo de miembros
+app.get('/api/obras/puntos-servicio', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json([])
+  const { ciudad } = req.query
+  if (!ciudad) return res.status(400).json([])
+  const { data: puntos } = await supabase.from('puntos_servicio').select('id, nombre').eq('activo', true).ilike('ciudad', ciudad).order('nombre')
+  if (!puntos) return res.json([])
+  const { data: miembros } = await supabase.from('registros').select('puntos_servicio').ilike('ciudad_donde_sirve', ciudad)
+  const conteos = {}
+  for (const m of miembros || []) {
+    for (const p of m.puntos_servicio || []) {
+      conteos[p] = (conteos[p] || 0) + 1
+    }
+  }
+  res.json(puntos.map(p => ({ ...p, total_miembros: conteos[p.nombre] || 0 })))
+})
+
+// Miembros de un punto de servicio en una ciudad
+app.get('/api/obras/miembros-punto', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json([])
+  const { punto, ciudad } = req.query
+  if (!punto || !ciudad) return res.status(400).json([])
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, estado_consagracion, es_coordinador, puntos_coordina')
+    .ilike('ciudad_donde_sirve', ciudad)
+    .contains('puntos_servicio', [punto])
+    .order('primer_apellido')
+  res.json(data || [])
+})
+
+// Buscar miembro por nombre o identificación en una ciudad
+app.get('/api/obras/buscar-miembro', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json([])
+  const { q, ciudad } = req.query
+  if (!q || !ciudad) return res.json([])
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, estado_consagracion, puntos_servicio')
+    .ilike('ciudad_donde_sirve', ciudad)
+    .or(`primer_apellido.ilike.%${q}%,segundo_apellido.ilike.%${q}%,primer_nombre.ilike.%${q}%,numero_identificacion.ilike.%${q}%`)
+    .limit(10)
+  res.json(data || [])
+})
+
+// Agregar un punto de servicio a un miembro
+app.put('/api/obras/miembro/:id/agregar-punto', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json({ ok: false })
+  const { punto } = req.body
+  if (!punto) return res.status(400).json({ ok: false, mensaje: 'Falta el punto' })
+  const { data: reg } = await supabase.from('registros').select('puntos_servicio').eq('id', req.params.id).single()
+  const actual = reg?.puntos_servicio || []
+  if (actual.includes(punto)) return res.json({ ok: true })
+  const { error } = await supabase.from('registros').update({ puntos_servicio: [...actual, punto] }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Quitar un punto de servicio a un miembro
+app.put('/api/obras/miembro/:id/quitar-punto', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json({ ok: false })
+  const { punto } = req.body
+  if (!punto) return res.status(400).json({ ok: false, mensaje: 'Falta el punto' })
+  const { data: reg } = await supabase.from('registros').select('puntos_servicio').eq('id', req.params.id).single()
+  const actual = reg?.puntos_servicio || []
+  const { error } = await supabase.from('registros').update({ puntos_servicio: actual.filter(p => p !== punto) }).eq('id', req.params.id)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
 })
