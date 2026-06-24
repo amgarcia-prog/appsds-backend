@@ -181,7 +181,7 @@ app.post('/api/login', async (req, res) => {
   }
   const { data, error } = await supabase
     .from('registros')
-    .select('id, primer_nombre, primer_apellido, numero_identificacion, clave, responsabilidades_consejo, ciudad_donde_sirve, pais_servicio, departamento_ciudad_servicio, estado_consagracion')
+    .select('id, primer_nombre, primer_apellido, numero_identificacion, clave, responsabilidades_consejo, ciudad_donde_sirve, estado_consagracion')
     .eq('numero_identificacion', numeroIdentificacion)
     .single()
 
@@ -208,8 +208,6 @@ app.post('/api/login', async (req, res) => {
       nombre: `${data.primer_nombre} ${data.primer_apellido}`,
       numeroIdentificacion: data.numero_identificacion,
       ciudad: data.ciudad_donde_sirve,
-      pais: data.pais_servicio || 'Colombia',
-      departamento: data.departamento_ciudad_servicio || null,
       roles,
     }
   })
@@ -540,9 +538,17 @@ app.delete('/api/admin/puntos-servicio/:id', verificarAdmin, async (req, res) =>
 app.post('/api/obras/puntos-servicio', async (req, res) => {
   const token = req.headers['x-miembro-id']
   if (!token) return res.status(401).json({ ok: false })
-  const { nombre, ciudad, pais } = req.body
-  if (!nombre?.trim() || !ciudad || !pais) return res.status(400).json({ ok: false, mensaje: 'Faltan datos' })
-  const { error } = await supabase.from('puntos_servicio').insert({ nombre: nombre.trim(), ciudad, pais, activo: true })
+  const { nombre } = req.body
+  if (!nombre?.trim()) return res.status(400).json({ ok: false, mensaje: 'Falta el nombre' })
+  const { data: miembro } = await supabase.from('registros').select('ciudad_donde_sirve, pais_servicio, departamento_ciudad_servicio').eq('id', token).single()
+  if (!miembro) return res.status(404).json({ ok: false, mensaje: 'Miembro no encontrado' })
+  const { error } = await supabase.from('puntos_servicio').insert({
+    nombre: nombre.trim(),
+    ciudad: miembro.ciudad_donde_sirve,
+    pais: miembro.pais_servicio || 'Colombia',
+    departamento: miembro.departamento_ciudad_servicio || null,
+    activo: true
+  })
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
 })
