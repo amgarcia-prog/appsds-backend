@@ -181,7 +181,7 @@ app.post('/api/login', async (req, res) => {
   }
   const { data, error } = await supabase
     .from('registros')
-    .select('id, primer_nombre, primer_apellido, numero_identificacion, clave, responsabilidades_consejo, ciudad_donde_sirve, estado_consagracion')
+    .select('id, primer_nombre, primer_apellido, numero_identificacion, clave, responsabilidades_consejo, ciudad_donde_sirve, pais_servicio, departamento_ciudad_servicio, estado_consagracion')
     .eq('numero_identificacion', numeroIdentificacion)
     .single()
 
@@ -208,6 +208,8 @@ app.post('/api/login', async (req, res) => {
       nombre: `${data.primer_nombre} ${data.primer_apellido}`,
       numeroIdentificacion: data.numero_identificacion,
       ciudad: data.ciudad_donde_sirve,
+      pais: data.pais_servicio || 'Colombia',
+      departamento: data.departamento_ciudad_servicio || null,
       roles,
     }
   })
