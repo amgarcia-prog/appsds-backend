@@ -200,6 +200,7 @@ app.post('/api/login', async (req, res) => {
   const resps = data.responsabilidades_consejo || []
   if (resps.includes('Formación y consagraciones')) roles.push('responsable_formacion')
   if (resps.includes('Obras y servicios')) roles.push('responsable_obras')
+  if (resps.includes('Coordinador principal del consejo')) roles.push('coordinador_consejo')
 
   res.json({
     ok: true,
@@ -543,6 +544,33 @@ app.put('/api/admin/puntos-servicio/:id', verificarAdmin, async (req, res) => {
 
 app.delete('/api/admin/puntos-servicio/:id', verificarAdmin, async (req, res) => {
   const { error } = await supabase.from('puntos_servicio').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// ── Responsabilidades Consejo ───────────────────────────────────────────────
+
+// Consejeros de una ciudad
+app.get('/api/consejo/miembros', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json([])
+  const { ciudad } = req.query
+  if (!ciudad) return res.status(400).json([])
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, responsabilidades_consejo, fecha_inicio_consejo, estado_consagracion')
+    .eq('pertenece_consejo', 'Si pertenezco')
+    .ilike('ciudad_donde_sirve', ciudad)
+    .order('primer_apellido')
+  res.json(data || [])
+})
+
+// Actualizar responsabilidades de un consejero
+app.put('/api/consejo/miembro/:id/responsabilidades', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json({ ok: false })
+  const { responsabilidades } = req.body
+  if (!Array.isArray(responsabilidades)) return res.status(400).json({ ok: false, mensaje: 'Formato inválido' })
+  const { error } = await supabase.from('registros').update({ responsabilidades_consejo: responsabilidades }).eq('id', req.params.id)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
 })
