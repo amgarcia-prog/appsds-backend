@@ -575,6 +575,85 @@ app.put('/api/consejo/miembro/:id/responsabilidades', async (req, res) => {
   res.json({ ok: true })
 })
 
+// Consejeros de una ciudad (admin)
+app.get('/api/admin/consejo/miembros', verificarAdmin, async (req, res) => {
+  const { ciudad } = req.query
+  if (!ciudad) return res.status(400).json([])
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, responsabilidades_consejo, fecha_inicio_consejo, estado_consagracion, pertenece_consejo')
+    .eq('pertenece_consejo', 'Si pertenezco')
+    .ilike('ciudad_donde_sirve', ciudad)
+    .order('primer_apellido')
+  res.json(data || [])
+})
+
+// Buscar miembros de una ciudad para agregar al consejo (admin)
+app.get('/api/admin/consejo/buscar-miembro', verificarAdmin, async (req, res) => {
+  const { q, ciudad } = req.query
+  if (!q || !ciudad) return res.json([])
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, estado_consagracion, pertenece_consejo')
+    .ilike('ciudad_donde_sirve', ciudad)
+    .or(`primer_nombre.ilike.%${q}%,primer_apellido.ilike.%${q}%,segundo_apellido.ilike.%${q}%,numero_identificacion.ilike.%${q}%`)
+    .neq('pertenece_consejo', 'Si pertenezco')
+    .limit(10)
+  res.json(data || [])
+})
+
+// Agregar miembro al consejo (admin)
+app.put('/api/admin/consejo/miembro/:id/agregar', verificarAdmin, async (req, res) => {
+  const { error } = await supabase.from('registros').update({
+    pertenece_consejo: 'Si pertenezco',
+    responsabilidades_consejo: [],
+    fecha_inicio_consejo: new Date().toISOString().split('T')[0]
+  }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Eliminar miembro del consejo (admin) — limpia responsabilidades
+app.put('/api/admin/consejo/miembro/:id/eliminar', verificarAdmin, async (req, res) => {
+  const { error } = await supabase.from('registros').update({
+    pertenece_consejo: 'No pertenezco',
+    responsabilidades_consejo: [],
+    fecha_inicio_consejo: null
+  }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Asignar coordinador principal o suplente (admin)
+app.put('/api/admin/consejo/miembro/:id/coordinador', verificarAdmin, async (req, res) => {
+  const { tipo, ciudadActual } = req.body
+  // tipo: 'principal' | 'suplente'
+  const rolAsignar = tipo === 'principal' ? 'Coordinador principal del consejo' : 'Coordinador suplente del consejo'
+  const rolQuitar = tipo === 'principal' ? 'Coordinador principal del consejo' : 'Coordinador suplente del consejo'
+
+  // Quitar ese rol a quien lo tenga actualmente en esa ciudad
+  const { data: actuales } = await supabase.from('registros')
+    .select('id, responsabilidades_consejo')
+    .eq('pertenece_consejo', 'Si pertenezco')
+    .ilike('ciudad_donde_sirve', ciudadActual)
+  if (actuales) {
+    for (const m of actuales) {
+      const resps = m.responsabilidades_consejo || []
+      if (resps.includes(rolQuitar) && m.id !== parseInt(req.params.id)) {
+        await supabase.from('registros').update({
+          responsabilidades_consejo: resps.filter(r => r !== rolQuitar)
+        }).eq('id', m.id)
+      }
+    }
+  }
+
+  // Asignar rol al nuevo coordinador
+  const { data: nuevo } = await supabase.from('registros').select('responsabilidades_consejo').eq('id', req.params.id).single()
+  const respsNuevo = (nuevo?.responsabilidades_consejo || []).filter(r => r !== rolAsignar)
+  respsNuevo.push(rolAsignar)
+  const { error } = await supabase.from('registros').update({ responsabilidades_consejo: respsNuevo }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 // ── Obras y Servicios ──────────────────────────────────────────────────────
 
 // Crear punto de servicio desde panel de obras
