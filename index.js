@@ -318,6 +318,21 @@ app.put('/api/formacion/consagrar-pacientes', async (req, res) => {
   res.json({ ok: true })
 })
 
+// Cambiar clave del miembro
+app.put('/api/miembro/cambiar-clave', async (req, res) => {
+  const token = req.headers['x-miembro-id']
+  if (!token) return res.status(401).json({ ok: false, mensaje: 'No autorizado' })
+  const { claveActual, claveNueva } = req.body
+  if (!claveActual || !claveNueva) return res.status(400).json({ ok: false, mensaje: 'Faltan datos' })
+  if (claveNueva.length < 6) return res.status(400).json({ ok: false, mensaje: 'La clave nueva debe tener al menos 6 caracteres' })
+  const { data: reg } = await supabase.from('registros').select('clave').eq('id', token).single()
+  if (!reg) return res.status(404).json({ ok: false, mensaje: 'No encontrado' })
+  if (reg.clave !== claveActual) return res.status(401).json({ ok: false, mensaje: 'La clave actual es incorrecta' })
+  const { error } = await supabase.from('registros').update({ clave: claveNueva }).eq('id', token)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 // Solicitud de consagración desde el perfil del miembro
 app.post('/api/miembro/solicitar-consagracion', async (req, res) => {
   const token = req.headers['x-miembro-id']
