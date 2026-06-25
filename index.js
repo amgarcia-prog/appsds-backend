@@ -622,6 +622,16 @@ app.put('/api/admin/consejo/miembro/:id/eliminar', verificarAdmin, async (req, r
   res.json({ ok: true })
 })
 
+// Quitar rol coordinador (admin)
+app.put('/api/admin/consejo/miembro/:id/quitar-coordinador', verificarAdmin, async (req, res) => {
+  const { rol } = req.body
+  const { data: miembro } = await supabase.from('registros').select('responsabilidades_consejo').eq('id', req.params.id).single()
+  const resps = (miembro?.responsabilidades_consejo || []).filter(r => r !== rol)
+  const { error } = await supabase.from('registros').update({ responsabilidades_consejo: resps }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 // Asignar coordinador principal o suplente (admin)
 app.put('/api/admin/consejo/miembro/:id/coordinador', verificarAdmin, async (req, res) => {
   const { tipo, ciudadActual } = req.body
