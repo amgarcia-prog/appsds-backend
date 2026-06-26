@@ -478,6 +478,18 @@ app.put('/api/junta/decision/:id', verificarAdmin, async (req, res) => {
   res.json({ ok: true })
 })
 
+// Registros para pilar (búsqueda avanzada)
+app.get('/api/pilar/registros', async (req, res) => {
+  const miembroId = req.headers['x-miembro-id']
+  if (!miembroId) return res.status(401).json({ error: 'sin id' })
+  const { data: m, error: errM } = await supabase.from('registros').select('estado_consagracion').eq('id', miembroId).single()
+  if (errM || !m) return res.status(403).json({ error: 'miembro no encontrado', miembroId })
+  if (m.estado_consagracion !== 'pilar') return res.status(403).json({ error: 'no es pilar', estado: m.estado_consagracion })
+  const { data, error } = await supabase.from('registros').select('*').order('created_at', { ascending: false })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json(data)
+})
+
 app.get('/api/admin/registros', verificarAdmin, async (req, res) => {
   const { data, error } = await supabase
     .from('registros')
@@ -522,6 +534,43 @@ app.get('/api/puntos-servicio', async (req, res) => {
   const { data, error } = await query.order('nombre')
   if (error) return res.status(500).json([])
   res.json(data)
+})
+
+// Correo masivo (admin o pilar)
+app.post('/api/admin/enviar-correo-masivo', async (req, res) => {
+  const adminKey = req.headers['x-admin-key']
+  const miembroId = req.headers['x-miembro-id']
+  if (!adminKey && !miembroId) return res.status(401).json({ ok: false, mensaje: 'No autorizado' })
+
+  // Si es miembro, verificar que sea pilar
+  let replyTo = null
+  if (miembroId) {
+    const { data: m } = await supabase.from('registros').select('estado_consagracion, correo_electronico').eq('id', miembroId).single()
+    if (!m || m.estado_consagracion !== 'pilar') return res.status(403).json({ ok: false, mensaje: 'Solo los pilares pueden enviar correos masivos' })
+    if (m.correo_electronico) replyTo = m.correo_electronico
+  } else if (adminKey !== 'SDS2026admin') {
+    return res.status(401).json({ ok: false, mensaje: 'No autorizado' })
+  }
+
+  const { asunto, cuerpo, correos } = req.body
+  if (!asunto || !cuerpo || !Array.isArray(correos) || correos.length === 0)
+    return res.status(400).json({ ok: false, mensaje: 'Faltan datos' })
+
+  let enviados = 0, errores = 0
+  for (const correo of correos) {
+    try {
+      const emailData = {
+        from: process.env.CORREO_INSTITUCIONAL || 'noreply@servidoresdelservidor.org',
+        to: correo,
+        subject: asunto,
+        html: `<div style="font-family:sans-serif;max-width:600px;margin:auto"><p style="white-space:pre-line">${cuerpo}</p><hr style="margin-top:32px"><p style="color:#888;font-size:12px">Servidores del Servidor</p></div>`
+      }
+      if (replyTo) emailData.reply_to = replyTo
+      await resend.emails.send(emailData)
+      enviados++
+    } catch { errores++ }
+  }
+  res.json({ ok: true, enviados, errores })
 })
 
 app.get('/api/admin/puntos-servicio', verificarAdmin, async (req, res) => {
