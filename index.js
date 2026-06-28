@@ -897,21 +897,40 @@ app.delete('/api/cio/clientes/:id', verificarCIO, async (req, res) => {
 // Proyectos
 app.get('/api/cio/proyectos/:clienteId', verificarCIO, async (req, res) => {
   const { data, error } = await supabase.from('cio_proyectos')
-    .select('*, cio_items_facturacion(*), cio_registros_tiempo(*)')
+    .select('*, cio_items_facturacion(*), cio_productos(*), cio_registros_tiempo(*)')
     .eq('cliente_id', req.params.clienteId)
     .order('created_at', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
 })
 app.post('/api/cio/proyectos', verificarCIO, async (req, res) => {
-  const { cliente_id, concepto, valor_contratado } = req.body
-  const { data, error } = await supabase.from('cio_proyectos').insert({ cliente_id, concepto, valor_contratado }).select().single()
+  const { cliente_id, concepto } = req.body
+  const { data, error } = await supabase.from('cio_proyectos').insert({ cliente_id, concepto }).select().single()
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true, data })
 })
 app.put('/api/cio/proyectos/:id', verificarCIO, async (req, res) => {
-  const { concepto, valor_contratado } = req.body
-  const { error } = await supabase.from('cio_proyectos').update({ concepto, valor_contratado }).eq('id', req.params.id)
+  const { concepto } = req.body
+  const { error } = await supabase.from('cio_proyectos').update({ concepto }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Productos
+app.post('/api/cio/productos', verificarCIO, async (req, res) => {
+  const { proyecto_id, concepto, valor } = req.body
+  const { data, error } = await supabase.from('cio_productos').insert({ proyecto_id, concepto, valor: valor || 0 }).select().single()
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true, data })
+})
+app.put('/api/cio/productos/:id', verificarCIO, async (req, res) => {
+  const { concepto, valor } = req.body
+  const { error } = await supabase.from('cio_productos').update({ concepto, valor: valor || 0 }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+app.delete('/api/cio/productos/:id', verificarCIO, async (req, res) => {
+  const { error } = await supabase.from('cio_productos').delete().eq('id', req.params.id)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
 })
@@ -942,11 +961,11 @@ app.delete('/api/cio/items/:id', verificarCIO, async (req, res) => {
 
 // Registros de tiempo
 app.post('/api/cio/tiempo', verificarCIO, async (req, res) => {
-  const { proyecto_id, fecha, hora_inicio, hora_fin, con_quien, actividad } = req.body
+  const { proyecto_id, producto_id, fecha, hora_inicio, hora_fin, con_quien, actividad } = req.body
   const [h1, m1] = hora_inicio.split(':').map(Number)
   const [h2, m2] = hora_fin.split(':').map(Number)
   const horas = Math.round(((h2 * 60 + m2) - (h1 * 60 + m1)) / 60 * 100) / 100
-  const { data, error } = await supabase.from('cio_registros_tiempo').insert({ proyecto_id, fecha, hora_inicio, hora_fin, horas, con_quien, actividad }).select().single()
+  const { data, error } = await supabase.from('cio_registros_tiempo').insert({ proyecto_id, producto_id: producto_id || null, fecha, hora_inicio, hora_fin, horas, con_quien, actividad }).select().single()
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true, data })
 })
