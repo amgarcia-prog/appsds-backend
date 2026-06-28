@@ -863,6 +863,99 @@ app.post('/api/upload', upload.single('archivo'), async (req, res) => {
   res.json({ ok: true, url: data.publicUrl })
 })
 
+// ── CIO ──────────────────────────────────────────────────────────────────────
+const CIO_KEY = 'CIO2026'
+const verificarCIO = (req, res, next) => {
+  if (req.headers['x-cio-key'] !== CIO_KEY) return res.status(401).json({ error: 'No autorizado' })
+  next()
+}
+
+// Clientes
+app.get('/api/cio/clientes', verificarCIO, async (req, res) => {
+  const { data, error } = await supabase.from('cio_clientes').select('*').order('nombre')
+  if (error) return res.status(500).json({ error: error.message })
+  res.json(data)
+})
+app.post('/api/cio/clientes', verificarCIO, async (req, res) => {
+  const { nit, nombre } = req.body
+  const { data, error } = await supabase.from('cio_clientes').insert({ nit, nombre }).select().single()
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true, data })
+})
+app.put('/api/cio/clientes/:id', verificarCIO, async (req, res) => {
+  const { nit, nombre } = req.body
+  const { error } = await supabase.from('cio_clientes').update({ nit, nombre }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+app.delete('/api/cio/clientes/:id', verificarCIO, async (req, res) => {
+  const { error } = await supabase.from('cio_clientes').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Proyectos
+app.get('/api/cio/proyectos/:clienteId', verificarCIO, async (req, res) => {
+  const { data, error } = await supabase.from('cio_proyectos')
+    .select('*, cio_items_facturacion(*), cio_registros_tiempo(*)')
+    .eq('cliente_id', req.params.clienteId)
+    .order('created_at', { ascending: false })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json(data)
+})
+app.post('/api/cio/proyectos', verificarCIO, async (req, res) => {
+  const { cliente_id, concepto, valor_contratado } = req.body
+  const { data, error } = await supabase.from('cio_proyectos').insert({ cliente_id, concepto, valor_contratado }).select().single()
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true, data })
+})
+app.put('/api/cio/proyectos/:id', verificarCIO, async (req, res) => {
+  const { concepto, valor_contratado } = req.body
+  const { error } = await supabase.from('cio_proyectos').update({ concepto, valor_contratado }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+app.delete('/api/cio/proyectos/:id', verificarCIO, async (req, res) => {
+  const { error } = await supabase.from('cio_proyectos').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Items facturación
+app.post('/api/cio/items', verificarCIO, async (req, res) => {
+  const { proyecto_id, fecha_facturacion, valor_facturado, descripcion } = req.body
+  const { data, error } = await supabase.from('cio_items_facturacion').insert({ proyecto_id, fecha_facturacion, valor_facturado, descripcion }).select().single()
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true, data })
+})
+app.put('/api/cio/items/:id', verificarCIO, async (req, res) => {
+  const { fecha_facturacion, valor_facturado, descripcion } = req.body
+  const { error } = await supabase.from('cio_items_facturacion').update({ fecha_facturacion, valor_facturado, descripcion }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+app.delete('/api/cio/items/:id', verificarCIO, async (req, res) => {
+  const { error } = await supabase.from('cio_items_facturacion').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Registros de tiempo
+app.post('/api/cio/tiempo', verificarCIO, async (req, res) => {
+  const { proyecto_id, fecha, hora_inicio, hora_fin, con_quien, actividad } = req.body
+  const [h1, m1] = hora_inicio.split(':').map(Number)
+  const [h2, m2] = hora_fin.split(':').map(Number)
+  const horas = Math.round(((h2 * 60 + m2) - (h1 * 60 + m1)) / 60 * 100) / 100
+  const { data, error } = await supabase.from('cio_registros_tiempo').insert({ proyecto_id, fecha, hora_inicio, hora_fin, horas, con_quien, actividad }).select().single()
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true, data })
+})
+app.delete('/api/cio/tiempo/:id', verificarCIO, async (req, res) => {
+  const { error } = await supabase.from('cio_registros_tiempo').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`🚀 Backend corriendo en http://localhost:${PORT}`)
