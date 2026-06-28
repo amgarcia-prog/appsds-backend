@@ -904,14 +904,14 @@ app.get('/api/cio/proyectos/:clienteId', verificarCIO, async (req, res) => {
   res.json(data)
 })
 app.post('/api/cio/proyectos', verificarCIO, async (req, res) => {
-  const { cliente_id, concepto } = req.body
-  const { data, error } = await supabase.from('cio_proyectos').insert({ cliente_id, concepto }).select().single()
+  const { cliente_id, concepto, fecha_inicio } = req.body
+  const { data, error } = await supabase.from('cio_proyectos').insert({ cliente_id, concepto, fecha_inicio: fecha_inicio || null }).select().single()
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true, data })
 })
 app.put('/api/cio/proyectos/:id', verificarCIO, async (req, res) => {
-  const { concepto } = req.body
-  const { error } = await supabase.from('cio_proyectos').update({ concepto }).eq('id', req.params.id)
+  const { concepto, fecha_inicio } = req.body
+  const { error } = await supabase.from('cio_proyectos').update({ concepto, fecha_inicio: fecha_inicio || null }).eq('id', req.params.id)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
 })
