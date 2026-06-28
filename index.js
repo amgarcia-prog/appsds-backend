@@ -918,14 +918,14 @@ app.put('/api/cio/proyectos/:id', verificarCIO, async (req, res) => {
 
 // Productos
 app.post('/api/cio/productos', verificarCIO, async (req, res) => {
-  const { proyecto_id, concepto, valor } = req.body
-  const { data, error } = await supabase.from('cio_productos').insert({ proyecto_id, concepto, valor: valor || 0 }).select().single()
+  const { proyecto_id, concepto, valor, horas_estimadas } = req.body
+  const { data, error } = await supabase.from('cio_productos').insert({ proyecto_id, concepto, valor: valor || 0, horas_estimadas: horas_estimadas || null }).select().single()
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true, data })
 })
 app.put('/api/cio/productos/:id', verificarCIO, async (req, res) => {
-  const { concepto, valor } = req.body
-  const { error } = await supabase.from('cio_productos').update({ concepto, valor: valor || 0 }).eq('id', req.params.id)
+  const { concepto, valor, horas_estimadas } = req.body
+  const { error } = await supabase.from('cio_productos').update({ concepto, valor: valor || 0, horas_estimadas: horas_estimadas || null }).eq('id', req.params.id)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
 })
