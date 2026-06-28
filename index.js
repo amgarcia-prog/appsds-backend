@@ -969,6 +969,15 @@ app.post('/api/cio/tiempo', verificarCIO, async (req, res) => {
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true, data })
 })
+app.put('/api/cio/tiempo/:id', verificarCIO, async (req, res) => {
+  const { producto_id, fecha, hora_inicio, hora_fin, con_quien, actividad } = req.body
+  const [h1, m1] = hora_inicio.split(':').map(Number)
+  const [h2, m2] = hora_fin.split(':').map(Number)
+  const horas = Math.round(((h2 * 60 + m2) - (h1 * 60 + m1)) / 60 * 100) / 100
+  const { error } = await supabase.from('cio_registros_tiempo').update({ producto_id: producto_id || null, fecha, hora_inicio, hora_fin, horas, con_quien, actividad }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
 app.delete('/api/cio/tiempo/:id', verificarCIO, async (req, res) => {
   const { error } = await supabase.from('cio_registros_tiempo').delete().eq('id', req.params.id)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
