@@ -1082,9 +1082,11 @@ app.delete('/api/organizacional/pilar/:pilarId/ciudades/:ciudadId', verificarPil
 const verificarFinanciero = async (req, res, next) => {
   const id = req.headers['x-miembro-id']
   if (!id) return res.status(401).json({ error: 'No autorizado' })
-  const { data } = await supabase.from('registros').select('roles, ciudad_donde_sirve').eq('id', id).single()
-  if (!data || !(data.roles || []).includes('responsable_financiero'))
-    return res.status(403).json({ error: 'Solo responsables financieros' })
+  const { data } = await supabase.from('registros').select('roles, responsabilidades_consejo, ciudad_donde_sirve').eq('id', id).single()
+  if (!data) return res.status(401).json({ error: 'No autorizado' })
+  const tieneRol = (data.roles || []).includes('responsable_financiero') ||
+                   (data.responsabilidades_consejo || []).includes('Financiero')
+  if (!tieneRol) return res.status(403).json({ error: 'Solo responsables financieros' })
   req.ciudadFinanciero = data.ciudad_donde_sirve
   next()
 }
