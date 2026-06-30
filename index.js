@@ -109,6 +109,15 @@ app.post('/api/registro', async (req, res) => {
     return res.status(500).json({ ok: false, mensaje: 'Error al guardar el registro.' })
   }
 
+  // Guardar ciudades responsables del pilar
+  if (datos.estadoConsagracion === 'pilar' && Array.isArray(datos.ciudadesResponsable) && datos.ciudadesResponsable.length > 0) {
+    const { data: nuevoRegistro } = await supabase.from('registros').select('id').eq('numero_identificacion', datos.numeroIdentificacion).single()
+    if (nuevoRegistro) {
+      const ciudadesInsert = datos.ciudadesResponsable.map(c => ({ pilar_id: nuevoRegistro.id, pais: c.pais, departamento: c.departamento || null, ciudad: c.ciudad }))
+      await supabase.from('pilar_ciudades').insert(ciudadesInsert)
+    }
+  }
+
   console.log(`✅ Registro guardado: ${nombreCompleto}`)
 
   // Enviar correo
@@ -980,6 +989,75 @@ app.put('/api/cio/tiempo/:id', verificarCIO, async (req, res) => {
 })
 app.delete('/api/cio/tiempo/:id', verificarCIO, async (req, res) => {
   const { error } = await supabase.from('cio_registros_tiempo').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// ── Pilar Organizacional ─────────────────────────────────────────────────────
+
+const verificarPilarOrganizacional = async (req, res, next) => {
+  const id = req.headers['x-miembro-id']
+  if (!id) return res.status(401).json({ error: 'No autorizado' })
+  const { data } = await supabase.from('registros').select('estado_consagracion, responsabilidades_pilar').eq('id', id).single()
+  if (!data || data.estado_consagracion !== 'pilar' || !(data.responsabilidades_pilar || []).includes('Organizacional'))
+    return res.status(403).json({ error: 'Solo pilares con rol Organizacional' })
+  next()
+}
+
+// Ciudades de un pilar
+app.get('/api/pilar/ciudades', async (req, res) => {
+  const id = req.headers['x-miembro-id']
+  if (!id) return res.status(401).json([])
+  const { data } = await supabase.from('pilar_ciudades').select('*').eq('pilar_id', id).order('pais').order('ciudad')
+  res.json(data || [])
+})
+app.post('/api/pilar/ciudades', async (req, res) => {
+  const id = req.headers['x-miembro-id']
+  if (!id) return res.status(401).json({ ok: false })
+  const { pais, departamento, ciudad } = req.body
+  const { error } = await supabase.from('pilar_ciudades').insert({ pilar_id: id, pais, departamento, ciudad })
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+app.delete('/api/pilar/ciudades/:ciudadId', async (req, res) => {
+  const id = req.headers['x-miembro-id']
+  if (!id) return res.status(401).json({ ok: false })
+  const { error } = await supabase.from('pilar_ciudades').delete().eq('id', req.params.ciudadId).eq('pilar_id', id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Lista de todos los pilares (para organizacional)
+app.get('/api/organizacional/pilares', verificarPilarOrganizacional, async (req, res) => {
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, responsabilidades_pilar, ciudad_donde_sirve, pais_servicio')
+    .eq('estado_consagracion', 'pilar')
+    .order('primer_apellido')
+  res.json(data || [])
+})
+
+// Actualizar responsabilidades de un pilar
+app.put('/api/organizacional/pilar/:id/responsabilidades', verificarPilarOrganizacional, async (req, res) => {
+  const { responsabilidades } = req.body
+  if (!Array.isArray(responsabilidades)) return res.status(400).json({ ok: false, mensaje: 'Formato inválido' })
+  const { error } = await supabase.from('registros').update({ responsabilidades_pilar: responsabilidades }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Ciudades de un pilar (por organizacional)
+app.get('/api/organizacional/pilar/:id/ciudades', verificarPilarOrganizacional, async (req, res) => {
+  const { data } = await supabase.from('pilar_ciudades').select('*').eq('pilar_id', req.params.id).order('pais').order('ciudad')
+  res.json(data || [])
+})
+app.post('/api/organizacional/pilar/:id/ciudades', verificarPilarOrganizacional, async (req, res) => {
+  const { pais, departamento, ciudad } = req.body
+  const { error } = await supabase.from('pilar_ciudades').insert({ pilar_id: req.params.id, pais, departamento, ciudad })
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+app.delete('/api/organizacional/pilar/:pilarId/ciudades/:ciudadId', verificarPilarOrganizacional, async (req, res) => {
+  const { error } = await supabase.from('pilar_ciudades').delete().eq('id', req.params.ciudadId).eq('pilar_id', req.params.pilarId)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
 })
