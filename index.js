@@ -210,6 +210,7 @@ app.post('/api/login', async (req, res) => {
   if (resps.includes('Formación y consagraciones') && !roles.includes('responsable_formacion')) roles.push('responsable_formacion')
   if (resps.includes('Obras y servicios') && !roles.includes('responsable_obras')) roles.push('responsable_obras')
   if (resps.includes('Coordinador principal del consejo') && !roles.includes('coordinador_consejo')) roles.push('coordinador_consejo')
+  if (resps.includes('Financiero') && !roles.includes('responsable_financiero')) roles.push('responsable_financiero')
 
   res.json({
     ok: true,
