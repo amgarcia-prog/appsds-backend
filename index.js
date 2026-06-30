@@ -190,7 +190,7 @@ app.post('/api/login', async (req, res) => {
   }
   const { data, error } = await supabase
     .from('registros')
-    .select('id, primer_nombre, primer_apellido, numero_identificacion, clave, responsabilidades_consejo, ciudad_donde_sirve, estado_consagracion')
+    .select('id, primer_nombre, primer_apellido, numero_identificacion, clave, responsabilidades_consejo, responsabilidades_pilar, ciudad_donde_sirve, estado_consagracion, roles')
     .eq('numero_identificacion', numeroIdentificacion)
     .single()
 
@@ -205,11 +205,11 @@ app.post('/api/login', async (req, res) => {
   }
 
   // Determinar roles
-  const roles = []
+  const roles = [...(data.roles || [])]
   const resps = data.responsabilidades_consejo || []
-  if (resps.includes('Formación y consagraciones')) roles.push('responsable_formacion')
-  if (resps.includes('Obras y servicios')) roles.push('responsable_obras')
-  if (resps.includes('Coordinador principal del consejo')) roles.push('coordinador_consejo')
+  if (resps.includes('Formación y consagraciones') && !roles.includes('responsable_formacion')) roles.push('responsable_formacion')
+  if (resps.includes('Obras y servicios') && !roles.includes('responsable_obras')) roles.push('responsable_obras')
+  if (resps.includes('Coordinador principal del consejo') && !roles.includes('coordinador_consejo')) roles.push('coordinador_consejo')
 
   res.json({
     ok: true,
@@ -218,6 +218,9 @@ app.post('/api/login', async (req, res) => {
       nombre: `${data.primer_nombre} ${data.primer_apellido}`,
       numeroIdentificacion: data.numero_identificacion,
       ciudad: data.ciudad_donde_sirve,
+      estado_consagracion: data.estado_consagracion,
+      responsabilidades_consejo: data.responsabilidades_consejo,
+      responsabilidades_pilar: data.responsabilidades_pilar,
       roles,
     }
   })
