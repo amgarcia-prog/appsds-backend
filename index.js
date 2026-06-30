@@ -536,6 +536,17 @@ app.delete('/api/admin/registros/:id', verificarAdmin, async (req, res) => {
   res.json({ ok: true })
 })
 
+app.put('/api/admin/registros/:id/rol-financiero', verificarAdmin, async (req, res) => {
+  const { asignar } = req.body
+  const { data: reg } = await supabase.from('registros').select('roles').eq('id', req.params.id).single()
+  let roles = reg?.roles || []
+  if (asignar) { if (!roles.includes('responsable_financiero')) roles = [...roles, 'responsable_financiero'] }
+  else { roles = roles.filter(r => r !== 'responsable_financiero') }
+  const { error } = await supabase.from('registros').update({ roles }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 app.get('/api/puntos-servicio', async (req, res) => {
   const { ciudad } = req.query
   let query = supabase.from('puntos_servicio').select('id, nombre, ciudad, pais').eq('activo', true)
@@ -1058,6 +1069,177 @@ app.post('/api/organizacional/pilar/:id/ciudades', verificarPilarOrganizacional,
 })
 app.delete('/api/organizacional/pilar/:pilarId/ciudades/:ciudadId', verificarPilarOrganizacional, async (req, res) => {
   const { error } = await supabase.from('pilar_ciudades').delete().eq('id', req.params.ciudadId).eq('pilar_id', req.params.pilarId)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// ── FINANCIERO ───────────────────────────────────────────────────────────────
+
+const verificarFinanciero = async (req, res, next) => {
+  const id = req.headers['x-miembro-id']
+  if (!id) return res.status(401).json({ error: 'No autorizado' })
+  const { data } = await supabase.from('registros').select('roles, ciudad_donde_sirve').eq('id', id).single()
+  if (!data || !(data.roles || []).includes('responsable_financiero'))
+    return res.status(403).json({ error: 'Solo responsables financieros' })
+  req.ciudadFinanciero = data.ciudad_donde_sirve
+  next()
+}
+
+// Puntos de servicio de la ciudad (para selectores)
+app.get('/api/financiero/puntos-servicio', verificarFinanciero, async (req, res) => {
+  const { data } = await supabase.from('puntos_servicio')
+    .select('id, nombre').eq('activo', true).ilike('ciudad', req.ciudadFinanciero).order('nombre')
+  res.json(data || [])
+})
+
+// ── Providentes ──
+app.get('/api/financiero/providentes', verificarFinanciero, async (req, res) => {
+  const { q } = req.query
+  let query = supabase.from('providentes').select('*').eq('ciudad', req.ciudadFinanciero).order('nombre')
+  if (q) query = query.ilike('nombre', `%${q}%`)
+  const { data } = await query
+  res.json(data || [])
+})
+
+app.post('/api/financiero/providentes', verificarFinanciero, async (req, res) => {
+  const { numero_identificacion, nombre, telefono, direccion, correo } = req.body
+  if (!numero_identificacion || !nombre) return res.status(400).json({ ok: false, mensaje: 'Cédula y nombre son requeridos' })
+  const { data, error } = await supabase.from('providentes')
+    .insert({ numero_identificacion, nombre, telefono, direccion, correo, ciudad: req.ciudadFinanciero })
+    .select().single()
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true, data })
+})
+
+app.put('/api/financiero/providentes/:id', verificarFinanciero, async (req, res) => {
+  const { numero_identificacion, nombre, telefono, direccion, correo } = req.body
+  const { error } = await supabase.from('providentes').update({ numero_identificacion, nombre, telefono, direccion, correo })
+    .eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.delete('/api/financiero/providentes/:id', verificarFinanciero, async (req, res) => {
+  const { error } = await supabase.from('providentes').delete().eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// ── Ingresos ──
+app.get('/api/financiero/ingresos', verificarFinanciero, async (req, res) => {
+  const { mes, anio } = req.query
+  let query = supabase.from('ingresos')
+    .select('*, providente:providente_id(nombre), punto:punto_servicio_id(nombre)')
+    .eq('ciudad', req.ciudadFinanciero).order('fecha', { ascending: false })
+  if (mes && anio) {
+    const desde = `${anio}-${mes.padStart(2,'0')}-01`
+    const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+    query = query.gte('fecha', desde).lte('fecha', hasta)
+  }
+  const { data } = await query
+  res.json(data || [])
+})
+
+app.post('/api/financiero/ingresos', verificarFinanciero, async (req, res) => {
+  const { fecha, providente_id, punto_servicio_id, tipo, concepto, mes_aporte, valor, comprobante_url } = req.body
+  if (!fecha || !tipo || !concepto || !valor) return res.status(400).json({ ok: false, mensaje: 'Faltan campos requeridos' })
+  const id = req.headers['x-miembro-id']
+  const { data, error } = await supabase.from('ingresos')
+    .insert({ fecha, providente_id: providente_id || null, punto_servicio_id: punto_servicio_id || null, tipo, concepto, mes_aporte: mes_aporte || null, valor, comprobante_url: comprobante_url || null, ciudad: req.ciudadFinanciero, registrado_por: id })
+    .select().single()
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true, data })
+})
+
+app.put('/api/financiero/ingresos/:id', verificarFinanciero, async (req, res) => {
+  const { fecha, providente_id, punto_servicio_id, tipo, concepto, mes_aporte, valor, comprobante_url } = req.body
+  const { error } = await supabase.from('ingresos')
+    .update({ fecha, providente_id: providente_id || null, punto_servicio_id: punto_servicio_id || null, tipo, concepto, mes_aporte: mes_aporte || null, valor, comprobante_url: comprobante_url || null })
+    .eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.delete('/api/financiero/ingresos/:id', verificarFinanciero, async (req, res) => {
+  const { error } = await supabase.from('ingresos').delete().eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// ── Egresos ──
+app.get('/api/financiero/egresos', verificarFinanciero, async (req, res) => {
+  const { mes, anio } = req.query
+  let query = supabase.from('egresos')
+    .select('*, punto:punto_servicio_id(nombre)')
+    .eq('ciudad', req.ciudadFinanciero).order('fecha', { ascending: false })
+  if (mes && anio) {
+    const desde = `${anio}-${mes.padStart(2,'0')}-01`
+    const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+    query = query.gte('fecha', desde).lte('fecha', hasta)
+  }
+  const { data } = await query
+  res.json(data || [])
+})
+
+app.post('/api/financiero/egresos', verificarFinanciero, async (req, res) => {
+  const { fecha, punto_servicio_id, concepto, valor, documento_url, es_costo_financiero } = req.body
+  if (!fecha || !concepto || !valor) return res.status(400).json({ ok: false, mensaje: 'Faltan campos requeridos' })
+  const id = req.headers['x-miembro-id']
+  const { data, error } = await supabase.from('egresos')
+    .insert({ fecha, punto_servicio_id: punto_servicio_id || null, concepto, valor, documento_url: documento_url || null, es_costo_financiero: es_costo_financiero || false, ciudad: req.ciudadFinanciero, registrado_por: id })
+    .select().single()
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true, data })
+})
+
+app.put('/api/financiero/egresos/:id', verificarFinanciero, async (req, res) => {
+  const { fecha, punto_servicio_id, concepto, valor, documento_url, es_costo_financiero } = req.body
+  const { error } = await supabase.from('egresos')
+    .update({ fecha, punto_servicio_id: punto_servicio_id || null, concepto, valor, documento_url: documento_url || null, es_costo_financiero: es_costo_financiero || false })
+    .eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.delete('/api/financiero/egresos/:id', verificarFinanciero, async (req, res) => {
+  const { error } = await supabase.from('egresos').delete().eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// ── Gestión del rol financiero ──
+app.get('/api/financiero/equipo', verificarFinanciero, async (req, res) => {
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, roles')
+    .ilike('ciudad_donde_sirve', req.ciudadFinanciero)
+  const equipo = (data || []).filter(r => (r.roles || []).includes('responsable_financiero'))
+  res.json(equipo)
+})
+
+app.get('/api/financiero/buscar-servidor', verificarFinanciero, async (req, res) => {
+  const { q } = req.query
+  if (!q) return res.json([])
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, roles')
+    .ilike('ciudad_donde_sirve', req.ciudadFinanciero)
+    .or(`primer_apellido.ilike.%${q}%,primer_nombre.ilike.%${q}%,numero_identificacion.ilike.%${q}%`)
+    .limit(8)
+  res.json(data || [])
+})
+
+app.put('/api/financiero/asignar-rol/:id', verificarFinanciero, async (req, res) => {
+  const { data: reg } = await supabase.from('registros').select('roles').eq('id', req.params.id).single()
+  const roles = reg?.roles || []
+  if (roles.includes('responsable_financiero')) return res.json({ ok: true })
+  const { error } = await supabase.from('registros').update({ roles: [...roles, 'responsable_financiero'] }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.put('/api/financiero/quitar-rol/:id', verificarFinanciero, async (req, res) => {
+  const { data: reg } = await supabase.from('registros').select('roles').eq('id', req.params.id).single()
+  const roles = (reg?.roles || []).filter(r => r !== 'responsable_financiero')
+  const { error } = await supabase.from('registros').update({ roles }).eq('id', req.params.id)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
 })
