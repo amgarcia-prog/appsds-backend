@@ -1214,6 +1214,33 @@ app.delete('/api/financiero/egresos/:id', verificarFinanciero, async (req, res) 
 })
 
 // ── Gestión del rol financiero ──
+// ── Saldo inicial por cuenta ──
+app.get('/api/financiero/saldo-inicial', verificarFinanciero, async (req, res) => {
+  const { cuenta } = req.query
+  const { data } = await supabase.from('saldos_iniciales')
+    .select('saldo').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta).single()
+  res.json({ saldo: data?.saldo || 0 })
+})
+
+app.put('/api/financiero/saldo-inicial', verificarFinanciero, async (req, res) => {
+  const { cuenta, saldo } = req.body
+  const { error } = await supabase.from('saldos_iniciales')
+    .upsert({ ciudad: req.ciudadFinanciero, cuenta, saldo }, { onConflict: 'ciudad,cuenta' })
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.get('/api/financiero/totales-cuenta', verificarFinanciero, async (req, res) => {
+  const { cuenta } = req.query
+  const [{ data: ing }, { data: egr }] = await Promise.all([
+    supabase.from('ingresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta),
+    supabase.from('egresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta),
+  ])
+  const totalIngresos = (ing || []).reduce((s, i) => s + Number(i.valor), 0)
+  const totalEgresos = (egr || []).reduce((s, e) => s + Number(e.valor), 0)
+  res.json({ totalIngresos, totalEgresos })
+})
+
 app.get('/api/financiero/equipo', verificarFinanciero, async (req, res) => {
   const { data } = await supabase.from('registros')
     .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, numero_identificacion, roles')
