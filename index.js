@@ -5,7 +5,8 @@ const { Resend } = require('resend')
 const { createClient } = require('@supabase/supabase-js')
 const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
-const archiver = require('archiver')
+const _archiverMod = require('archiver')
+const archiver = _archiverMod.default || _archiverMod
 const fs = require('fs')
 const path = require('path')
 
