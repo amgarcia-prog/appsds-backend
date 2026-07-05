@@ -1766,9 +1766,21 @@ const LOGO_URL = 'https://gvdgqwxbkcauephznqfd.supabase.co/storage/v1/object/pub
 let logoBuffer = null
 async function getLogoBuffer() {
   if (logoBuffer) return logoBuffer
-  const res = await fetch(LOGO_URL)
-  logoBuffer = Buffer.from(await res.arrayBuffer())
-  return logoBuffer
+  try {
+    const https = require('https')
+    logoBuffer = await new Promise((resolve, reject) => {
+      https.get(LOGO_URL, (r) => {
+        const chunks = []
+        r.on('data', c => chunks.push(c))
+        r.on('end', () => resolve(Buffer.concat(chunks)))
+        r.on('error', reject)
+      }).on('error', reject)
+    })
+    return logoBuffer
+  } catch (e) {
+    console.error('Error descargando logo:', e.message)
+    return null
+  }
 }
 
 const UNIDADES = ['','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve']
@@ -1968,6 +1980,7 @@ app.get('/api/financiero/reporte/recibos-mes', verificarFinanciero, async (req, 
     })
   }
 
+  archive.on('error', err => { console.error('ZIP error:', err); if (!res.headersSent) res.status(500).json({ error: err.message }) })
   archive.finalize()
 })
 
