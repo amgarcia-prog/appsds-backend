@@ -1762,6 +1762,15 @@ app.put('/api/financiero/quitar-rol/:id', verificarFinanciero, async (req, res) 
 })
 
 // ── Helpers recibo PDF ──
+const LOGO_URL = 'https://gvdgqwxbkcauephznqfd.supabase.co/storage/v1/object/public/Comprobantes/Logos/Logo%20Servidores.jpg'
+let logoBuffer = null
+async function getLogoBuffer() {
+  if (logoBuffer) return logoBuffer
+  const res = await fetch(LOGO_URL)
+  logoBuffer = Buffer.from(await res.arrayBuffer())
+  return logoBuffer
+}
+
 const UNIDADES = ['','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve']
 const DECENAS  = ['','','veinte','treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa']
 const CENTENAS = ['','ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos','setecientos','ochocientos','novecientos']
@@ -1781,7 +1790,7 @@ function numLetras(n) {
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1) }
 
-function generarReciboPDF(doc, ingreso, config, receptor) {
+function generarReciboPDF(doc, ingreso, config, receptor, logo) {
   const M = 40
   const W = 515
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -1789,6 +1798,9 @@ function generarReciboPDF(doc, ingreso, config, receptor) {
   const dia = String(fecha.getDate()).padStart(2,'0')
   const mes = String(fecha.getMonth()+1).padStart(2,'0')
   const anio = fecha.getFullYear()
+
+  // ── Logo ──
+  if (logo) doc.image(logo, M, 38, { width: 65, height: 65 })
 
   // ── Encabezado ──
   doc.fontSize(10).font('Helvetica-Bold')
@@ -1858,9 +1870,10 @@ function generarReciboPDF(doc, ingreso, config, receptor) {
   doc.rect(cbX, DY+18, 9, 9).stroke().text('ESPECIE',  cbX+12, DY+19)
   doc.rect(cbX, DY+31, 9, 9).stroke().text('EFECTIVO', cbX+12, DY+32)
   doc.rect(cbX, DY+44, 9, 9).stroke().text('BANCO',    cbX+12, DY+45)
-  if (esEspecie) doc.fontSize(9).font('Helvetica-Bold').text('✓', cbX+1, DY+17)
-  else if (esBanco) doc.fontSize(9).font('Helvetica-Bold').text('✓', cbX+1, DY+43)
-  else doc.fontSize(9).font('Helvetica-Bold').text('✓', cbX+1, DY+30)
+  doc.fontSize(8).font('Helvetica-Bold')
+  if (esEspecie) doc.text('X', cbX+1, DY+19)
+  else if (esBanco) doc.text('X', cbX+1, DY+45)
+  else doc.text('X', cbX+1, DY+32)
 
   // Valor y suma en letras
   doc.roundedRect(M+90, DY+10, 340, 45, 3).stroke()
@@ -1898,8 +1911,11 @@ app.get('/api/financiero/recibo/:id', verificarFinanciero, async (req, res) => {
     .eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero).single()
   if (error || !ing) return res.status(404).json({ error: 'Ingreso no encontrado' })
 
-  const { data: cfg } = await supabase.from('config_ciudad').select('cuenta_bancaria').eq('ciudad', req.ciudadFinanciero).single()
-  const { data: user } = await supabase.from('registros').select('primer_nombre, primer_apellido').eq('id', req.headers['x-miembro-id']).single()
+  const [{ data: cfg }, { data: user }, logo] = await Promise.all([
+    supabase.from('config_ciudad').select('cuenta_bancaria').eq('ciudad', req.ciudadFinanciero).single(),
+    supabase.from('registros').select('primer_nombre, primer_apellido').eq('id', req.headers['x-miembro-id']).single(),
+    getLogoBuffer(),
+  ])
   const receptor = user ? `${user.primer_nombre} ${user.primer_apellido}` : ''
 
   res.setHeader('Content-Type', 'application/pdf')
@@ -1907,7 +1923,7 @@ app.get('/api/financiero/recibo/:id', verificarFinanciero, async (req, res) => {
 
   const doc = new PDFDocument({ size: 'LETTER', margin: 0 })
   doc.pipe(res)
-  generarReciboPDF(doc, ing, cfg || {}, receptor)
+  generarReciboPDF(doc, ing, cfg || {}, receptor, logo)
   doc.end()
 })
 
@@ -1921,11 +1937,12 @@ app.get('/api/financiero/reporte/recibos-mes', verificarFinanciero, async (req, 
   const desde = `${anio}-${mes.padStart(2,'0')}-01`
   const hasta = `${anio}-${mes.padStart(2,'0')}-31`
 
-  const [{ data: ingresos }, { data: cfg }, { data: user }] = await Promise.all([
+  const [{ data: ingresos }, { data: cfg }, { data: user }, logo] = await Promise.all([
     supabase.from('ingresos').select('*, providente:providente_id(nombre, numero_identificacion, telefono, direccion, correo)')
       .eq('ciudad', req.ciudadFinanciero).gte('fecha', desde).lte('fecha', hasta).order('numero_recibo', { ascending: true }),
     supabase.from('config_ciudad').select('cuenta_bancaria').eq('ciudad', req.ciudadFinanciero).single(),
     supabase.from('registros').select('primer_nombre, primer_apellido').eq('id', req.headers['x-miembro-id']).single(),
+    getLogoBuffer(),
   ])
 
   const receptor = user ? `${user.primer_nombre} ${user.primer_apellido}` : ''
@@ -1946,7 +1963,7 @@ app.get('/api/financiero/reporte/recibos-mes', verificarFinanciero, async (req, 
         archive.append(buf, { name: `recibo_${ing.numero_recibo || ing.id.substring(0,8)}.pdf` })
         resolve()
       })
-      generarReciboPDF(doc, ing, cfg || {}, receptor)
+      generarReciboPDF(doc, ing, cfg || {}, receptor, logo)
       doc.end()
     })
   }
