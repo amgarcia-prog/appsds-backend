@@ -1432,7 +1432,7 @@ app.get('/api/financiero/reporte/donaciones', verificarFinanciero, async (req, r
   res.end()
 })
 
-app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (req, res) => {
+const generarReporteMovimiento = async (req, res, cuenta, tituloLabel, nombreArchivo) => {
   const { mes, anio } = req.query
   if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
 
@@ -1441,13 +1441,12 @@ app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (
   const desde = `${anio}-${mes.padStart(2,'0')}-01`
   const hasta = `${anio}-${mes.padStart(2,'0')}-31`
 
-  // Saldo inicial registrado + totales históricos antes del mes
   const [{ data: saldoData }, { data: ingHist }, { data: egrHist }, { data: ingresos }, { data: egresos }] = await Promise.all([
-    supabase.from('saldos_iniciales').select('saldo').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').single(),
-    supabase.from('ingresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').lt('fecha', desde),
-    supabase.from('egresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').lt('fecha', desde),
-    supabase.from('ingresos').select('*').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: true }),
-    supabase.from('egresos').select('*').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: true }),
+    supabase.from('saldos_iniciales').select('saldo').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta).single(),
+    supabase.from('ingresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta).lt('fecha', desde),
+    supabase.from('egresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta).lt('fecha', desde),
+    supabase.from('ingresos').select('*').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta).gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: true }),
+    supabase.from('egresos').select('*').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta).gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: true }),
   ])
 
   const saldoInicial = Number(saldoData?.saldo || 0)
@@ -1455,17 +1454,16 @@ app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (
   const totalEgrHist = (egrHist || []).reduce((s, r) => s + Number(r.valor), 0)
   let saldo = saldoInicial + totalIngHist - totalEgrHist
 
-  // Mezclar y ordenar por fecha
   const movimientos = [
     ...(ingresos || []).map(r => ({ ...r, _tipo: 'ingreso' })),
     ...(egresos || []).map(r => ({ ...r, _tipo: 'egreso' })),
   ].sort((a, b) => a.fecha.localeCompare(b.fecha))
 
   const wb = new ExcelJS.Workbook()
-  const ws = wb.addWorksheet('Movimiento Banco')
+  const ws = wb.addWorksheet(tituloLabel)
 
   ws.mergeCells('A1:F1')
-  ws.getCell('A1').value = `MOVIMIENTO BANCO — ${nombreMes.toUpperCase()} ${anio}`
+  ws.getCell('A1').value = `${tituloLabel.toUpperCase()} — ${nombreMes.toUpperCase()} ${anio}`
   ws.getCell('A1').font = { bold: true, size: 13 }
   ws.getCell('A1').alignment = { horizontal: 'center' }
   ws.getRow(1).height = 22
@@ -1483,7 +1481,6 @@ app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (
     cell.alignment = { horizontal: 'center' }
   })
 
-  // Fila saldo anterior
   const saRow = ws.addRow(['', '', 'Saldo anterior', '', '', saldo])
   saRow.getCell(3).font = { italic: true }
   saRow.getCell(6).numFmt = '$#,##0.00'
@@ -1512,18 +1509,23 @@ app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (
   tRow.getCell(6).font = { bold: true }
   tRow.getCell(6).alignment = { horizontal: 'right' }
 
-  ws.getColumn(1).width = 14
-  ws.getColumn(2).width = 16
-  ws.getColumn(3).width = 35
-  ws.getColumn(4).width = 16
-  ws.getColumn(5).width = 16
-  ws.getColumn(6).width = 16
+  ws.getColumn(1).width = 14; ws.getColumn(2).width = 16; ws.getColumn(3).width = 35
+  ws.getColumn(4).width = 16; ws.getColumn(5).width = 16; ws.getColumn(6).width = 16
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-  res.setHeader('Content-Disposition', `attachment; filename="movimiento_banco_${nombreMes}_${anio}.xlsx"`)
+  res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}_${nombreMes}_${anio}.xlsx"`)
   await wb.xlsx.write(res)
   res.end()
-})
+}
+
+app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, (req, res) =>
+  generarReporteMovimiento(req, res, 'banco', 'Movimiento Banco', 'movimiento_banco'))
+
+app.get('/api/financiero/reporte/movimiento-caja-menor', verificarFinanciero, (req, res) =>
+  generarReporteMovimiento(req, res, 'caja_menor', 'Movimiento Caja Menor', 'movimiento_caja_menor'))
+
+app.get('/api/financiero/reporte/consumo-caja-menor', verificarFinanciero, (req, res) =>
+  generarReporteMovimiento(req, res, 'consumo_caja_menor', 'Consumo Caja Menor', 'consumo_caja_menor'))
 
 // ── Saldo inicial por cuenta ──
 app.get('/api/financiero/saldo-inicial', verificarFinanciero, async (req, res) => {
