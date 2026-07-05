@@ -1462,55 +1462,52 @@ const generarReporteMovimiento = async (req, res, cuenta, tituloLabel, nombreArc
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet(tituloLabel)
 
-  ws.mergeCells('A1:F1')
+  ws.mergeCells('A1:E1')
   ws.getCell('A1').value = `${tituloLabel.toUpperCase()} — ${nombreMes.toUpperCase()} ${anio}`
   ws.getCell('A1').font = { bold: true, size: 13 }
   ws.getCell('A1').alignment = { horizontal: 'center' }
   ws.getRow(1).height = 22
 
-  ws.mergeCells('A2:F2')
+  ws.mergeCells('A2:E2')
   ws.getCell('A2').value = `Ciudad: ${req.ciudadFinanciero}`
   ws.getCell('A2').font = { italic: true, size: 10 }
   ws.getCell('A2').alignment = { horizontal: 'center' }
   ws.addRow([])
 
-  const hRow = ws.addRow(['Fecha', 'N° Comprobante', 'Concepto', 'Ingreso', 'Egreso', 'Saldo'])
+  const hRow = ws.addRow(['Fecha', 'Concepto', 'Ingreso', 'Egreso', 'Saldo'])
   hRow.eachCell(cell => {
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } }
     cell.alignment = { horizontal: 'center' }
   })
 
-  const saRow = ws.addRow(['', '', 'Saldo anterior', '', '', saldo])
-  saRow.getCell(3).font = { italic: true }
-  saRow.getCell(6).numFmt = '$#,##0.00'
-  saRow.getCell(6).font = { bold: true, italic: true }
-  saRow.getCell(6).alignment = { horizontal: 'right' }
+  const saRow = ws.addRow(['', 'Saldo anterior', '', '', saldo])
+  saRow.getCell(2).font = { italic: true }
+  saRow.getCell(5).numFmt = '$#,##0.00'
+  saRow.getCell(5).font = { bold: true, italic: true }
+  saRow.getCell(5).alignment = { horizontal: 'right' }
 
   movimientos.forEach((r, i) => {
     const esIngreso = r._tipo === 'ingreso'
-    const ingVal = esIngreso ? Number(r.valor) : null
-    const egrVal = esIngreso ? null : Number(r.valor)
     saldo += esIngreso ? Number(r.valor) : -Number(r.valor)
-    const comprobante = r.numero_recibo || r.id?.substring(0, 8) || ''
-    const row = ws.addRow([r.fecha, comprobante, r.concepto || '', ingVal, egrVal, saldo])
+    const row = ws.addRow([r.fecha, r.concepto || '', esIngreso ? Number(r.valor) : null, esIngreso ? null : Number(r.valor), saldo])
+    row.getCell(3).numFmt = '$#,##0.00'; row.getCell(3).alignment = { horizontal: 'right' }
     row.getCell(4).numFmt = '$#,##0.00'; row.getCell(4).alignment = { horizontal: 'right' }
     row.getCell(5).numFmt = '$#,##0.00'; row.getCell(5).alignment = { horizontal: 'right' }
-    row.getCell(6).numFmt = '$#,##0.00'; row.getCell(6).alignment = { horizontal: 'right' }
-    if (esIngreso) row.getCell(4).font = { color: { argb: 'FF1A7A3C' } }
-    else row.getCell(5).font = { color: { argb: 'FFCC2200' } }
+    if (esIngreso) row.getCell(3).font = { color: { argb: 'FF1A7A3C' } }
+    else row.getCell(4).font = { color: { argb: 'FFCC2200' } }
     if (i % 2 === 1) row.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } } })
   })
 
   ws.addRow([])
-  const tRow = ws.addRow(['', '', 'Saldo final', '', '', saldo])
-  tRow.getCell(3).font = { bold: true }
-  tRow.getCell(6).numFmt = '$#,##0.00'
-  tRow.getCell(6).font = { bold: true }
-  tRow.getCell(6).alignment = { horizontal: 'right' }
+  const tRow = ws.addRow(['', 'Saldo final', '', '', saldo])
+  tRow.getCell(2).font = { bold: true }
+  tRow.getCell(5).numFmt = '$#,##0.00'
+  tRow.getCell(5).font = { bold: true }
+  tRow.getCell(5).alignment = { horizontal: 'right' }
 
-  ws.getColumn(1).width = 14; ws.getColumn(2).width = 16; ws.getColumn(3).width = 35
-  ws.getColumn(4).width = 16; ws.getColumn(5).width = 16; ws.getColumn(6).width = 16
+  ws.getColumn(1).width = 14; ws.getColumn(2).width = 40
+  ws.getColumn(3).width = 16; ws.getColumn(4).width = 16; ws.getColumn(5).width = 16
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}_${nombreMes}_${anio}.xlsx"`)
