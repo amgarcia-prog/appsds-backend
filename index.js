@@ -1352,7 +1352,7 @@ app.get('/api/financiero/reporte/donaciones', verificarFinanciero, async (req, r
     .eq('ciudad', req.ciudadFinanciero)
     .eq('tipo', 'donacion_servicio')
     .gte('fecha', desde).lte('fecha', hasta)
-    .order('fecha', { ascending: true })
+    .order('numero_recibo', { ascending: true })
 
   const registros = data || []
   const especie = registros.filter(r => r.forma_donacion === 'especie')
