@@ -1217,6 +1217,22 @@ app.delete('/api/financiero/egresos/:id', verificarFinanciero, async (req, res) 
 })
 
 // ── Gestión del rol financiero ──
+// ── Consultas ──
+app.get('/api/financiero/consulta/aportes-benefactor', verificarFinanciero, async (req, res) => {
+  const { providente_id, anio } = req.query
+  let query = supabase.from('ingresos')
+    .select('*, providente:providente_id(nombre, numero_identificacion, telefono)')
+    .eq('ciudad', req.ciudadFinanciero)
+    .eq('tipo', 'aporte_consagrado')
+    .order('fecha', { ascending: true })
+  if (providente_id) query = query.eq('providente_id', providente_id)
+  if (anio) query = query.gte('fecha', `${anio}-01-01`).lte('fecha', `${anio}-12-31`)
+  const { data, error } = await query
+  console.log('consulta aportes:', { providente_id, anio, ciudad: req.ciudadFinanciero, count: data?.length, error: error?.message })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json(data || [])
+})
+
 // ── Reportes Excel ──
 app.get('/api/financiero/reporte/aportes-consagrados', verificarFinanciero, async (req, res) => {
   const { mes, anio } = req.query
