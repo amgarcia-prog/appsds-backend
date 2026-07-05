@@ -4,6 +4,8 @@ const cors = require('cors')
 const { Resend } = require('resend')
 const { createClient } = require('@supabase/supabase-js')
 const ExcelJS = require('exceljs')
+const PDFDocument = require('pdfkit')
+const archiver = require('archiver')
 const fs = require('fs')
 const path = require('path')
 
@@ -1757,6 +1759,199 @@ app.put('/api/financiero/quitar-rol/:id', verificarFinanciero, async (req, res) 
   const { error } = await supabase.from('registros').update({ roles }).eq('id', req.params.id)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
+})
+
+// ── Helpers recibo PDF ──
+const UNIDADES = ['','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve']
+const DECENAS  = ['','','veinte','treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa']
+const CENTENAS = ['','ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos','setecientos','ochocientos','novecientos']
+
+function numLetras(n) {
+  n = Math.round(n)
+  if (n === 0) return 'cero'
+  if (n === 100) return 'cien'
+  if (n < 20) return UNIDADES[n]
+  if (n < 100) return DECENAS[Math.floor(n/10)] + (n%10 ? ' y ' + UNIDADES[n%10] : '')
+  if (n < 1000) return CENTENAS[Math.floor(n/100)] + (n%100 ? ' ' + numLetras(n%100) : '')
+  if (n < 2000) return 'mil' + (n%1000 ? ' ' + numLetras(n%1000) : '')
+  if (n < 1000000) return numLetras(Math.floor(n/1000)) + ' mil' + (n%1000 ? ' ' + numLetras(n%1000) : '')
+  if (n < 2000000) return 'un millón' + (n%1000000 ? ' ' + numLetras(n%1000000) : '')
+  return numLetras(Math.floor(n/1000000)) + ' millones' + (n%1000000 ? ' ' + numLetras(n%1000000) : '')
+}
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1) }
+
+function generarReciboPDF(doc, ingreso, config, receptor) {
+  const M = 40
+  const W = 515
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const fecha = new Date(ingreso.fecha + 'T12:00:00')
+  const dia = String(fecha.getDate()).padStart(2,'0')
+  const mes = String(fecha.getMonth()+1).padStart(2,'0')
+  const anio = fecha.getFullYear()
+
+  // ── Encabezado ──
+  doc.fontSize(10).font('Helvetica-Bold')
+    .text('Asociación Privada de Fieles Laicos', M+70, 45, { width: 340, align: 'center' })
+  doc.fontSize(9)
+    .text('"Donum Christi Comunidad Apostólica Servidores del Servidor hijos di Padre Pío"', M+70, 58, { width: 340, align: 'center' })
+  doc.fontSize(10).font('Helvetica-Bold')
+    .text('NIT. 900.049.867-5', M+70, 71, { width: 340, align: 'center' })
+  doc.fontSize(7).font('Helvetica')
+    .text('Propiciar en el amor caritativo el encuentro y la asistencia a los habitantes de la calle y de los más pobres entre los pobres, buscando principalmente la salvación de las almas por medio del servicio, a ejemplo de nuestro SERVIDOR.', M+70, 83, { width: 330, align: 'center' })
+
+  // No. recibo (caja superior derecha)
+  doc.rect(430, 40, 125, 24).stroke()
+  doc.fontSize(9).font('Helvetica-Bold').text('No.', 435, 47)
+  doc.fontSize(12).font('Helvetica-Bold').fillColor('red').text(ingreso.numero_recibo || '—', 460, 45, { width: 90, align: 'center' })
+  doc.fillColor('black')
+
+  // Caja fecha
+  doc.rect(430, 68, 125, 36).stroke()
+  doc.rect(430, 68, 125, 14).stroke()
+  doc.fontSize(8).font('Helvetica-Bold').text('FECHA', 430, 70, { width: 125, align: 'center' })
+  doc.rect(430, 82, 42, 22).stroke()
+  doc.rect(472, 82, 42, 22).stroke()
+  doc.rect(514, 82, 41, 22).stroke()
+  doc.fontSize(7).font('Helvetica').text('DIA', 430, 84, { width: 42, align: 'center' })
+    .text('MES', 472, 84, { width: 42, align: 'center' })
+    .text('AÑO', 514, 84, { width: 41, align: 'center' })
+  doc.fontSize(9).font('Helvetica-Bold')
+    .text(dia, 430, 93, { width: 42, align: 'center' })
+    .text(mes, 472, 93, { width: 42, align: 'center' })
+    .text(String(anio), 514, 93, { width: 41, align: 'center' })
+
+  // ── Sección benefactor ──
+  const BY = 130
+  doc.roundedRect(M, BY, W, 90, 4).stroke()
+  doc.moveTo(M, BY+30).lineTo(M+W, BY+30).stroke()
+  doc.moveTo(M, BY+60).lineTo(M+W, BY+60).stroke()
+  doc.moveTo(M+310, BY).lineTo(M+310, BY+90).stroke()
+  doc.moveTo(M+310, BY+45).lineTo(M+W, BY+45).stroke()
+
+  const nombre = ingreso.providente?.nombre || ingreso.providente_otro || '—'
+  const cc = ingreso.providente?.numero_identificacion || ''
+  const dir = ingreso.providente?.direccion || ''
+  const tel = ingreso.providente?.telefono || ''
+  const email = ingreso.providente?.correo || ''
+
+  doc.fontSize(7).font('Helvetica-Bold').text('NOMBRE / RAZON SOCIAL', M+5, BY+4)
+  doc.fontSize(9).font('Helvetica').text(nombre, M+5, BY+16)
+  doc.fontSize(7).font('Helvetica-Bold').text('CÉDULA / NIT', M+315, BY+4)
+  doc.fontSize(9).font('Helvetica').text(cc, M+315, BY+16, { width: 200, align: 'center' })
+  doc.fontSize(7).font('Helvetica-Bold').text('DIRECCIÓN', M+5, BY+34)
+  doc.fontSize(9).font('Helvetica').text(dir, M+5, BY+45)
+  doc.fontSize(7).font('Helvetica-Bold').text('TELÉFONO', M+315, BY+34)
+  doc.fontSize(9).font('Helvetica').text(tel, M+315, BY+45)
+  doc.fontSize(7).font('Helvetica-Bold').text('EMAIL', M+5, BY+64)
+  doc.fontSize(9).font('Helvetica').text(email, M+5, BY+75)
+
+  // ── Sección donación ──
+  const DY = 235
+  const esEspecie = ingreso.forma_donacion === 'especie'
+  const esBanco   = ingreso.cuenta === 'banco'
+
+  doc.fontSize(8).font('Helvetica-Bold').text('DONACIÓN EN:', M, DY+5)
+  doc.fontSize(7).font('Helvetica')
+  // checkboxes
+  const cbX = M+5
+  doc.rect(cbX, DY+18, 9, 9).stroke().text('ESPECIE',  cbX+12, DY+19)
+  doc.rect(cbX, DY+31, 9, 9).stroke().text('EFECTIVO', cbX+12, DY+32)
+  doc.rect(cbX, DY+44, 9, 9).stroke().text('BANCO',    cbX+12, DY+45)
+  if (esEspecie) doc.fontSize(9).font('Helvetica-Bold').text('✓', cbX+1, DY+17)
+  else if (esBanco) doc.fontSize(9).font('Helvetica-Bold').text('✓', cbX+1, DY+43)
+  else doc.fontSize(9).font('Helvetica-Bold').text('✓', cbX+1, DY+30)
+
+  // Valor y suma en letras
+  doc.roundedRect(M+90, DY+10, 340, 45, 3).stroke()
+  const valor = Number(ingreso.valor)
+  const fmtVal = new Intl.NumberFormat('es-CO').format(valor)
+  doc.fontSize(14).font('Helvetica-Bold').text(`$ ${fmtVal}`, M+95, DY+16, { width: 100 })
+  doc.fontSize(8).font('Helvetica-Bold').text('LA SUMA DE', M+200, DY+16)
+  doc.fontSize(8).font('Helvetica').text(capitalize(numLetras(valor)) + ' Pesos', M+200, DY+28, { width: 225 })
+
+  // Concepto
+  const CY = DY + 65
+  doc.roundedRect(M, CY, W, 28, 3).stroke()
+  doc.fontSize(8).font('Helvetica-Bold').text('CONCEPTO', M+5, CY+4)
+  doc.fontSize(9).font('Helvetica').text(ingreso.concepto || '', M+80, CY+4)
+
+  // ── Footer ──
+  const FY = CY + 40
+  doc.roundedRect(M, FY, 130, 40, 3).stroke()
+  doc.fontSize(7).font('Helvetica-Bold').text('NOMBRE DE QUIEN RECIBE', M+5, FY+5)
+  doc.fontSize(9).font('Helvetica').text(receptor || '', M+5, FY+18)
+
+  doc.fontSize(7).font('Helvetica')
+    .text(config.cuenta_bancaria || '', M+145, FY+2, { width: 220 })
+    .text(`Oficina Carrera 20 No 62-37  Teléfono: 7551335`, M+145, FY+12, { width: 220 })
+    .text('administracion@servidoresdelservidor.org', M+145, FY+22, { width: 220 })
+    .fontSize(6.5).text('"Señor mi Dios, si amas al que da alegremente, suscita entonces en nuestros corazones la alegría de servirnos unos a otros mediante la caridad."', M+145, FY+30, { width: 220 })
+
+  doc.fontSize(7).text('www.servidoresdelservidor.org', M+370, FY+20, { width: 185, align: 'center' })
+}
+
+// ── Recibo PDF individual ──
+app.get('/api/financiero/recibo/:id', verificarFinanciero, async (req, res) => {
+  const { data: ing, error } = await supabase.from('ingresos')
+    .select('*, providente:providente_id(nombre, numero_identificacion, telefono, direccion, correo)')
+    .eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero).single()
+  if (error || !ing) return res.status(404).json({ error: 'Ingreso no encontrado' })
+
+  const { data: cfg } = await supabase.from('config_ciudad').select('cuenta_bancaria').eq('ciudad', req.ciudadFinanciero).single()
+  const { data: user } = await supabase.from('registros').select('primer_nombre, primer_apellido').eq('id', req.headers['x-miembro-id']).single()
+  const receptor = user ? `${user.primer_nombre} ${user.primer_apellido}` : ''
+
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Disposition', `attachment; filename="recibo_${ing.numero_recibo || ing.id.substring(0,8)}.pdf"`)
+
+  const doc = new PDFDocument({ size: 'LETTER', margin: 0 })
+  doc.pipe(res)
+  generarReciboPDF(doc, ing, cfg || {}, receptor)
+  doc.end()
+})
+
+// ── Recibos ZIP del mes ──
+app.get('/api/financiero/reporte/recibos-mes', verificarFinanciero, async (req, res) => {
+  const { mes, anio } = req.query
+  if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
+
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const nombreMes = MESES[parseInt(mes)-1]
+  const desde = `${anio}-${mes.padStart(2,'0')}-01`
+  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+
+  const [{ data: ingresos }, { data: cfg }, { data: user }] = await Promise.all([
+    supabase.from('ingresos').select('*, providente:providente_id(nombre, numero_identificacion, telefono, direccion, correo)')
+      .eq('ciudad', req.ciudadFinanciero).gte('fecha', desde).lte('fecha', hasta).order('numero_recibo', { ascending: true }),
+    supabase.from('config_ciudad').select('cuenta_bancaria').eq('ciudad', req.ciudadFinanciero).single(),
+    supabase.from('registros').select('primer_nombre, primer_apellido').eq('id', req.headers['x-miembro-id']).single(),
+  ])
+
+  const receptor = user ? `${user.primer_nombre} ${user.primer_apellido}` : ''
+
+  res.setHeader('Content-Type', 'application/zip')
+  res.setHeader('Content-Disposition', `attachment; filename="recibos_${nombreMes}_${anio}.zip"`)
+
+  const archive = archiver('zip', { zlib: { level: 6 } })
+  archive.pipe(res)
+
+  for (const ing of (ingresos || [])) {
+    await new Promise((resolve) => {
+      const chunks = []
+      const doc = new PDFDocument({ size: 'LETTER', margin: 0 })
+      doc.on('data', c => chunks.push(c))
+      doc.on('end', () => {
+        const buf = Buffer.concat(chunks)
+        archive.append(buf, { name: `recibo_${ing.numero_recibo || ing.id.substring(0,8)}.pdf` })
+        resolve()
+      })
+      generarReciboPDF(doc, ing, cfg || {}, receptor)
+      doc.end()
+    })
+  }
+
+  archive.finalize()
 })
 
 const PORT = process.env.PORT || 3001
