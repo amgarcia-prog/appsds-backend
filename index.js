@@ -1815,14 +1815,14 @@ function generarReciboPDF(doc, ingreso, config, receptor, logo) {
   if (logo) doc.image(logo, M, 38, { width: 65, height: 65 })
 
   // ── Encabezado ──
-  doc.fontSize(10).font('Helvetica-Bold')
-    .text('Asociación Privada de Fieles Laicos', M+70, 45, { width: 340, align: 'center' })
-  doc.fontSize(9)
-    .text('"Donum Christi Comunidad Apostólica Servidores del Servidor hijos di Padre Pío"', M+70, 58, { width: 340, align: 'center' })
-  doc.fontSize(10).font('Helvetica-Bold')
-    .text('NIT. 900.049.867-5', M+70, 71, { width: 340, align: 'center' })
-  doc.fontSize(7).font('Helvetica')
-    .text('Propiciar en el amor caritativo el encuentro y la asistencia a los habitantes de la calle y de los más pobres entre los pobres, buscando principalmente la salvación de las almas por medio del servicio, a ejemplo de nuestro SERVIDOR.', M+70, 83, { width: 330, align: 'center' })
+  doc.fontSize(9).font('Helvetica-Bold')
+    .text('Asociación Privada de Fieles Laicos', M+70, 42, { width: 330, align: 'center' })
+  doc.fontSize(7.5).font('Helvetica-Bold')
+    .text('"Donum Christi Comunidad Apostólica Servidores del Servidor hijos di Padre Pío"', M+70, 54, { width: 330, align: 'center' })
+  doc.fontSize(9).font('Helvetica-Bold')
+    .text('NIT. 900.049.867-5', M+70, 67, { width: 330, align: 'center' })
+  doc.fontSize(6.5).font('Helvetica')
+    .text('Propiciar en el amor caritativo el encuentro y la asistencia a los habitantes de la calle y de los más pobres entre los pobres, buscando principalmente la salvación de las almas por medio del servicio, a ejemplo de nuestro SERVIDOR.', M+70, 79, { width: 330, align: 'center' })
 
   // No. recibo (caja superior derecha)
   doc.rect(430, 40, 125, 24).stroke()
@@ -1851,7 +1851,6 @@ function generarReciboPDF(doc, ingreso, config, receptor, logo) {
   doc.moveTo(M, BY+30).lineTo(M+W, BY+30).stroke()
   doc.moveTo(M, BY+60).lineTo(M+W, BY+60).stroke()
   doc.moveTo(M+310, BY).lineTo(M+310, BY+90).stroke()
-  doc.moveTo(M+310, BY+45).lineTo(M+W, BY+45).stroke()
 
   const nombre = ingreso.providente?.nombre || ingreso.providente_otro || '—'
   const cc = ingreso.providente?.numero_identificacion || ''
@@ -1866,7 +1865,7 @@ function generarReciboPDF(doc, ingreso, config, receptor, logo) {
   doc.fontSize(7).font('Helvetica-Bold').text('DIRECCIÓN', M+5, BY+34)
   doc.fontSize(9).font('Helvetica').text(dir, M+5, BY+45)
   doc.fontSize(7).font('Helvetica-Bold').text('TELÉFONO', M+315, BY+34)
-  doc.fontSize(9).font('Helvetica').text(tel, M+315, BY+45)
+  doc.fontSize(9).font('Helvetica').text(tel, M+315, BY+48, { width: 200, align: 'center' })
   doc.fontSize(7).font('Helvetica-Bold').text('EMAIL', M+5, BY+64)
   doc.fontSize(9).font('Helvetica').text(email, M+5, BY+75)
 
