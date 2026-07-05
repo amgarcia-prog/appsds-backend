@@ -1188,20 +1188,20 @@ app.get('/api/financiero/egresos', verificarFinanciero, async (req, res) => {
 })
 
 app.post('/api/financiero/egresos', verificarFinanciero, async (req, res) => {
-  const { fecha, punto_servicio_id, concepto, valor, documento_url, es_costo_financiero } = req.body
+  const { fecha, punto_servicio_id, concepto, valor, documento_url, es_costo_financiero, cuenta } = req.body
   if (!fecha || !concepto || !valor) return res.status(400).json({ ok: false, mensaje: 'Faltan campos requeridos' })
   const id = req.headers['x-miembro-id']
   const { data, error } = await supabase.from('egresos')
-    .insert({ fecha, punto_servicio_id: punto_servicio_id || null, concepto, valor, documento_url: documento_url || null, es_costo_financiero: es_costo_financiero || false, ciudad: req.ciudadFinanciero, registrado_por: id })
+    .insert({ fecha, punto_servicio_id: punto_servicio_id || null, concepto, valor, documento_url: documento_url || null, es_costo_financiero: es_costo_financiero || false, cuenta: cuenta || 'banco', ciudad: req.ciudadFinanciero, registrado_por: id })
     .select().single()
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true, data })
 })
 
 app.put('/api/financiero/egresos/:id', verificarFinanciero, async (req, res) => {
-  const { fecha, punto_servicio_id, concepto, valor, documento_url, es_costo_financiero } = req.body
+  const { fecha, punto_servicio_id, concepto, valor, documento_url, es_costo_financiero, cuenta } = req.body
   const { error } = await supabase.from('egresos')
-    .update({ fecha, punto_servicio_id: punto_servicio_id || null, concepto, valor, documento_url: documento_url || null, es_costo_financiero: es_costo_financiero || false })
+    .update({ fecha, punto_servicio_id: punto_servicio_id || null, concepto, valor, documento_url: documento_url || null, es_costo_financiero: es_costo_financiero || false, cuenta: cuenta || 'banco' })
     .eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
