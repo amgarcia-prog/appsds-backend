@@ -1233,11 +1233,11 @@ app.put('/api/financiero/saldo-inicial', verificarFinanciero, async (req, res) =
 })
 
 app.get('/api/financiero/totales-cuenta', verificarFinanciero, async (req, res) => {
-  const { cuenta } = req.query
-  const [{ data: ing }, { data: egr }] = await Promise.all([
-    supabase.from('ingresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta),
-    supabase.from('egresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta),
-  ])
+  const { cuenta, hasta } = req.query
+  let ingQ = supabase.from('ingresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta)
+  let egrQ = supabase.from('egresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta)
+  if (hasta) { ingQ = ingQ.lt('fecha', hasta); egrQ = egrQ.lt('fecha', hasta) }
+  const [{ data: ing }, { data: egr }] = await Promise.all([ingQ, egrQ])
   const totalIngresos = (ing || []).reduce((s, i) => s + Number(i.valor), 0)
   const totalEgresos = (egr || []).reduce((s, e) => s + Number(e.valor), 0)
   res.json({ totalIngresos, totalEgresos })
