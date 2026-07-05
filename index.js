@@ -1559,15 +1559,15 @@ app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (
   ws.getCell('A2').alignment = { horizontal: 'center' }
   ws.addRow([])
 
-  const hRow = ws.addRow(['Fecha', 'N° Comprobante', 'Concepto', 'Benefactor', 'Servicio', 'Ingreso', 'Egreso', 'Saldo'])
+  const hRow = ws.addRow(['Fecha', 'N° Comprobante', 'Benefactor', 'Servicio', 'Concepto', 'Ingreso', 'Egreso', 'Saldo'])
   hRow.eachCell(cell => {
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } }
     cell.alignment = { horizontal: 'center' }
   })
 
-  const saRow = ws.addRow(['', '', 'Saldo anterior', '', '', '', '', saldo])
-  saRow.getCell(3).font = { italic: true }
+  const saRow = ws.addRow(['', '', '', '', 'Saldo anterior', '', '', saldo])
+  saRow.getCell(5).font = { italic: true }
   saRow.getCell(8).numFmt = '$#,##0.00'
   saRow.getCell(8).font = { bold: true, italic: true }
   saRow.getCell(8).alignment = { horizontal: 'right' }
@@ -1579,7 +1579,7 @@ app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (
     const servicio = r.punto?.nombre || r.punto_servicio_otro || ''
     const comprobante = r.numero_recibo || r.id?.substring(0, 8) || ''
     const row = ws.addRow([
-      r.fecha, comprobante, r.concepto || '', benefactor, servicio,
+      r.fecha, comprobante, benefactor, servicio, r.concepto || '',
       esIngreso ? Number(r.valor) : null,
       esIngreso ? null : Number(r.valor),
       saldo
@@ -1593,14 +1593,14 @@ app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (
   })
 
   ws.addRow([])
-  const tRow = ws.addRow(['', '', 'Saldo final', '', '', '', '', saldo])
-  tRow.getCell(3).font = { bold: true }
+  const tRow = ws.addRow(['', '', '', '', 'Saldo final', '', '', saldo])
+  tRow.getCell(5).font = { bold: true }
   tRow.getCell(8).numFmt = '$#,##0.00'
   tRow.getCell(8).font = { bold: true }
   tRow.getCell(8).alignment = { horizontal: 'right' }
 
   ws.getColumn(1).width = 14; ws.getColumn(2).width = 16; ws.getColumn(3).width = 30
-  ws.getColumn(4).width = 30; ws.getColumn(5).width = 25
+  ws.getColumn(4).width = 25; ws.getColumn(5).width = 30
   ws.getColumn(6).width = 16; ws.getColumn(7).width = 16; ws.getColumn(8).width = 16
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
