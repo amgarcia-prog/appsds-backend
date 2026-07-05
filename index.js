@@ -1821,8 +1821,6 @@ function generarReciboPDF(doc, ingreso, config, receptor, logo) {
     .text('"Donum Christi Comunidad Apostólica Servidores del Servidor hijos di Padre Pío"', M+70, 54, { width: 330, align: 'center' })
   doc.fontSize(9).font('Helvetica-Bold')
     .text('NIT. 900.049.867-5', M+70, 67, { width: 330, align: 'center' })
-  doc.fontSize(6.5).font('Helvetica')
-    .text('Propiciar en el amor caritativo el encuentro y la asistencia a los habitantes de la calle y de los más pobres entre los pobres, buscando principalmente la salvación de las almas por medio del servicio, a ejemplo de nuestro SERVIDOR.', M+70, 79, { width: 330, align: 'center' })
 
   // No. recibo (caja superior derecha)
   doc.rect(430, 40, 125, 24).stroke()
