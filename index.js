@@ -1147,20 +1147,20 @@ app.get('/api/financiero/ingresos', verificarFinanciero, async (req, res) => {
 })
 
 app.post('/api/financiero/ingresos', verificarFinanciero, async (req, res) => {
-  const { fecha, providente_id, providente_otro, punto_servicio_id, punto_servicio_otro, tipo, concepto, mes_aporte, valor, comprobante_url, numero_recibo, forma_donacion } = req.body
+  const { fecha, providente_id, providente_otro, punto_servicio_id, punto_servicio_otro, tipo, concepto, mes_aporte, valor, comprobante_url, numero_recibo, forma_donacion, cuenta } = req.body
   if (!fecha || !tipo || !concepto || !valor) return res.status(400).json({ ok: false, mensaje: 'Faltan campos requeridos' })
   const id = req.headers['x-miembro-id']
   const { data, error } = await supabase.from('ingresos')
-    .insert({ fecha, providente_id: providente_id || null, providente_otro: providente_otro || null, punto_servicio_id: punto_servicio_id || null, punto_servicio_otro: punto_servicio_otro || null, tipo, concepto, mes_aporte: mes_aporte || null, valor, comprobante_url: comprobante_url || null, numero_recibo: numero_recibo || null, forma_donacion: forma_donacion || 'dinero', ciudad: req.ciudadFinanciero, registrado_por: id })
+    .insert({ fecha, providente_id: providente_id || null, providente_otro: providente_otro || null, punto_servicio_id: punto_servicio_id || null, punto_servicio_otro: punto_servicio_otro || null, tipo, concepto, mes_aporte: mes_aporte || null, valor, comprobante_url: comprobante_url || null, numero_recibo: numero_recibo || null, forma_donacion: forma_donacion || 'dinero', cuenta: cuenta || 'banco', ciudad: req.ciudadFinanciero, registrado_por: id })
     .select().single()
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true, data })
 })
 
 app.put('/api/financiero/ingresos/:id', verificarFinanciero, async (req, res) => {
-  const { fecha, providente_id, providente_otro, punto_servicio_id, punto_servicio_otro, tipo, concepto, mes_aporte, valor, comprobante_url, numero_recibo, forma_donacion } = req.body
+  const { fecha, providente_id, providente_otro, punto_servicio_id, punto_servicio_otro, tipo, concepto, mes_aporte, valor, comprobante_url, numero_recibo, forma_donacion, cuenta } = req.body
   const { error } = await supabase.from('ingresos')
-    .update({ fecha, providente_id: providente_id || null, providente_otro: providente_otro || null, punto_servicio_id: punto_servicio_id || null, punto_servicio_otro: punto_servicio_otro || null, tipo, concepto, mes_aporte: mes_aporte || null, valor, comprobante_url: comprobante_url || null, numero_recibo: numero_recibo || null, forma_donacion: forma_donacion || 'dinero' })
+    .update({ fecha, providente_id: providente_id || null, providente_otro: providente_otro || null, punto_servicio_id: punto_servicio_id || null, punto_servicio_otro: punto_servicio_otro || null, tipo, concepto, mes_aporte: mes_aporte || null, valor, comprobante_url: comprobante_url || null, numero_recibo: numero_recibo || null, forma_donacion: forma_donacion || 'dinero', cuenta: cuenta || 'banco' })
     .eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
