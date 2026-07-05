@@ -3,6 +3,7 @@ const express = require('express')
 const cors = require('cors')
 const { Resend } = require('resend')
 const { createClient } = require('@supabase/supabase-js')
+const ExcelJS = require('exceljs')
 const fs = require('fs')
 const path = require('path')
 
@@ -1216,6 +1217,100 @@ app.delete('/api/financiero/egresos/:id', verificarFinanciero, async (req, res) 
 })
 
 // ── Gestión del rol financiero ──
+// ── Reportes Excel ──
+app.get('/api/financiero/reporte/aportes-consagrados', verificarFinanciero, async (req, res) => {
+  const { mes, anio } = req.query
+  if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
+
+  const desde = `${anio}-${mes.padStart(2,'0')}-01`
+  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const nombreMes = MESES[parseInt(mes) - 1]
+
+  const { data } = await supabase.from('ingresos')
+    .select('*, providente:providente_id(nombre)')
+    .eq('ciudad', req.ciudadFinanciero)
+    .eq('tipo', 'aporte_consagrado')
+    .gte('fecha', desde).lte('fecha', hasta)
+    .order('providente_id', { ascending: true })
+
+  const registros = (data || []).sort((a, b) => {
+    const na = a.providente?.nombre || a.providente_otro || ''
+    const nb = b.providente?.nombre || b.providente_otro || ''
+    return na.localeCompare(nb)
+  })
+
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Aportes Consagrados')
+
+  // Título
+  ws.mergeCells('A1:E1')
+  ws.getCell('A1').value = `RELACIÓN APORTES CONSAGRADOS — ${nombreMes.toUpperCase()} ${anio}`
+  ws.getCell('A1').font = { bold: true, size: 13 }
+  ws.getCell('A1').alignment = { horizontal: 'center' }
+  ws.getRow(1).height = 22
+
+  ws.mergeCells('A2:E2')
+  ws.getCell('A2').value = `Ciudad: ${req.ciudadFinanciero}`
+  ws.getCell('A2').font = { italic: true, size: 10 }
+  ws.getCell('A2').alignment = { horizontal: 'center' }
+
+  ws.addRow([])
+
+  // Encabezados
+  const hRow = ws.addRow(['#', 'Fecha', 'N° Recibo', 'Benefactor', 'Mes del aporte', 'Valor'])
+  hRow.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } }
+    cell.alignment = { horizontal: 'center' }
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } }
+  })
+
+  // Datos
+  let total = 0
+  registros.forEach((r, i) => {
+    const nombre = r.providente?.nombre || r.providente_otro || '—'
+    const row = ws.addRow([
+      i + 1,
+      r.fecha,
+      r.numero_recibo || '',
+      nombre,
+      r.mes_aporte || '',
+      Number(r.valor)
+    ])
+    row.getCell(6).numFmt = '$#,##0.00'
+    row.getCell(6).alignment = { horizontal: 'right' }
+    if (i % 2 === 1) {
+      row.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } }
+      })
+    }
+    total += Number(r.valor)
+  })
+
+  // Total
+  ws.addRow([])
+  const tRow = ws.addRow(['', '', '', '', 'TOTAL', total])
+  tRow.getCell(5).font = { bold: true }
+  tRow.getCell(5).alignment = { horizontal: 'right' }
+  tRow.getCell(6).numFmt = '$#,##0.00'
+  tRow.getCell(6).font = { bold: true }
+  tRow.getCell(6).alignment = { horizontal: 'right' }
+
+  // Anchos de columna
+  ws.getColumn(1).width = 5
+  ws.getColumn(2).width = 14
+  ws.getColumn(3).width = 12
+  ws.getColumn(4).width = 35
+  ws.getColumn(5).width = 18
+  ws.getColumn(6).width = 16
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  res.setHeader('Content-Disposition', `attachment; filename="aportes_consagrados_${nombreMes}_${anio}.xlsx"`)
+  await wb.xlsx.write(res)
+  res.end()
+})
+
 // ── Saldo inicial por cuenta ──
 app.get('/api/financiero/saldo-inicial', verificarFinanciero, async (req, res) => {
   const { cuenta } = req.query
