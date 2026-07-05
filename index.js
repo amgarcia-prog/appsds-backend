@@ -1612,8 +1612,89 @@ app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (
 app.get('/api/financiero/reporte/movimiento-caja-menor', verificarFinanciero, (req, res) =>
   generarReporteMovimiento(req, res, 'caja_menor', 'Movimiento Caja Menor', 'movimiento_caja_menor'))
 
-app.get('/api/financiero/reporte/consumo-caja-menor', verificarFinanciero, (req, res) =>
-  generarReporteMovimiento(req, res, 'consumo_caja_menor', 'Consumo Caja Menor', 'consumo_caja_menor'))
+app.get('/api/financiero/reporte/consumo-caja-menor', verificarFinanciero, async (req, res) => {
+  const { mes, anio } = req.query
+  if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
+
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const nombreMes = MESES[parseInt(mes) - 1]
+  const desde = `${anio}-${mes.padStart(2,'0')}-01`
+  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+
+  const [{ data: saldoData }, { data: ingHist }, { data: egrHist }, { data: ingresos }, { data: egresos }] = await Promise.all([
+    supabase.from('saldos_iniciales').select('saldo').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'consumo_caja_menor').single(),
+    supabase.from('ingresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'consumo_caja_menor').lt('fecha', desde),
+    supabase.from('egresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'consumo_caja_menor').lt('fecha', desde),
+    supabase.from('ingresos').select('*').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'consumo_caja_menor').gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: true }),
+    supabase.from('egresos').select('*, punto:punto_servicio_id(nombre)').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'consumo_caja_menor').gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: true }),
+  ])
+
+  const saldoInicial = Number(saldoData?.saldo || 0)
+  let saldo = saldoInicial
+    + (ingHist || []).reduce((s, r) => s + Number(r.valor), 0)
+    - (egrHist || []).reduce((s, r) => s + Number(r.valor), 0)
+
+  const movimientos = [
+    ...(ingresos || []).map(r => ({ ...r, _tipo: 'ingreso' })),
+    ...(egresos || []).map(r => ({ ...r, _tipo: 'egreso' })),
+  ].sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Consumo Caja Menor')
+
+  ws.mergeCells('A1:F1')
+  ws.getCell('A1').value = `CONSUMO CAJA MENOR — ${nombreMes.toUpperCase()} ${anio}`
+  ws.getCell('A1').font = { bold: true, size: 13 }
+  ws.getCell('A1').alignment = { horizontal: 'center' }
+  ws.getRow(1).height = 22
+
+  ws.mergeCells('A2:F2')
+  ws.getCell('A2').value = `Ciudad: ${req.ciudadFinanciero}`
+  ws.getCell('A2').font = { italic: true, size: 10 }
+  ws.getCell('A2').alignment = { horizontal: 'center' }
+  ws.addRow([])
+
+  const hRow = ws.addRow(['Fecha', 'Servicio', 'Concepto', 'Ingreso', 'Egreso', 'Saldo'])
+  hRow.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } }
+    cell.alignment = { horizontal: 'center' }
+  })
+
+  const saRow = ws.addRow(['', '', 'Saldo anterior', '', '', saldo])
+  saRow.getCell(3).font = { italic: true }
+  saRow.getCell(6).numFmt = '$#,##0.00'
+  saRow.getCell(6).font = { bold: true, italic: true }
+  saRow.getCell(6).alignment = { horizontal: 'right' }
+
+  movimientos.forEach((r, i) => {
+    const esIngreso = r._tipo === 'ingreso'
+    saldo += esIngreso ? Number(r.valor) : -Number(r.valor)
+    const servicio = esIngreso ? '' : (r.punto?.nombre || r.punto_servicio_otro || '')
+    const row = ws.addRow([r.fecha, servicio, r.concepto || '', esIngreso ? Number(r.valor) : null, esIngreso ? null : Number(r.valor), saldo])
+    row.getCell(4).numFmt = '$#,##0.00'; row.getCell(4).alignment = { horizontal: 'right' }
+    row.getCell(5).numFmt = '$#,##0.00'; row.getCell(5).alignment = { horizontal: 'right' }
+    row.getCell(6).numFmt = '$#,##0.00'; row.getCell(6).alignment = { horizontal: 'right' }
+    if (esIngreso) row.getCell(4).font = { color: { argb: 'FF1A7A3C' } }
+    else row.getCell(5).font = { color: { argb: 'FFCC2200' } }
+    if (i % 2 === 1) row.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } } })
+  })
+
+  ws.addRow([])
+  const tRow = ws.addRow(['', '', 'Saldo final', '', '', saldo])
+  tRow.getCell(3).font = { bold: true }
+  tRow.getCell(6).numFmt = '$#,##0.00'
+  tRow.getCell(6).font = { bold: true }
+  tRow.getCell(6).alignment = { horizontal: 'right' }
+
+  ws.getColumn(1).width = 14; ws.getColumn(2).width = 25; ws.getColumn(3).width = 35
+  ws.getColumn(4).width = 16; ws.getColumn(5).width = 16; ws.getColumn(6).width = 16
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  res.setHeader('Content-Disposition', `attachment; filename="consumo_caja_menor_${nombreMes}_${anio}.xlsx"`)
+  await wb.xlsx.write(res)
+  res.end()
+})
 
 // ── Saldo inicial por cuenta ──
 app.get('/api/financiero/saldo-inicial', verificarFinanciero, async (req, res) => {
