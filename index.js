@@ -1232,6 +1232,18 @@ app.get('/api/financiero/consulta/aportes-benefactor', verificarFinanciero, asyn
   res.json(data || [])
 })
 
+app.get('/api/financiero/proximo-recibo', verificarFinanciero, async (req, res) => {
+  const { data } = await supabase.from('ingresos')
+    .select('numero_recibo')
+    .eq('ciudad', req.ciudadFinanciero)
+    .not('numero_recibo', 'is', null)
+  const max = (data || []).reduce((m, r) => {
+    const n = parseInt(r.numero_recibo)
+    return isNaN(n) ? m : Math.max(m, n)
+  }, 0)
+  res.json({ proximo: max > 0 ? max + 1 : null })
+})
+
 // ── Reportes Excel ──
 app.get('/api/financiero/reporte/aportes-consagrados', verificarFinanciero, async (req, res) => {
   const { mes, anio } = req.query
