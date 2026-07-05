@@ -1338,6 +1338,100 @@ app.get('/api/financiero/reporte/aportes-consagrados', verificarFinanciero, asyn
   res.end()
 })
 
+app.get('/api/financiero/reporte/donaciones', verificarFinanciero, async (req, res) => {
+  const { mes, anio } = req.query
+  if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
+
+  const desde = `${anio}-${mes.padStart(2,'0')}-01`
+  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const nombreMes = MESES[parseInt(mes) - 1]
+
+  const { data } = await supabase.from('ingresos')
+    .select('*, providente:providente_id(nombre, telefono), punto:punto_servicio_id(nombre)')
+    .eq('ciudad', req.ciudadFinanciero)
+    .eq('tipo', 'donacion_servicio')
+    .gte('fecha', desde).lte('fecha', hasta)
+    .order('fecha', { ascending: true })
+
+  const registros = data || []
+  const especie = registros.filter(r => r.forma_donacion === 'especie')
+  const dinero  = registros.filter(r => r.forma_donacion !== 'especie')
+
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Donaciones')
+
+  const HEADER_COLOR = 'FF1E3A5F'
+  const HEADER_FONT  = { bold: true, color: { argb: 'FFFFFFFF' } }
+  const COLS = ['Fecha', 'N° Comprobante', 'Valor', 'Servicio', 'Donante', 'Teléfono']
+  const WIDTHS = [14, 16, 16, 28, 35, 16]
+
+  // Título principal
+  ws.mergeCells('A1:F1')
+  ws.getCell('A1').value = `RELACIÓN DE DONACIONES — ${nombreMes.toUpperCase()} ${anio}`
+  ws.getCell('A1').font = { bold: true, size: 13 }
+  ws.getCell('A1').alignment = { horizontal: 'center' }
+  ws.getRow(1).height = 22
+
+  ws.mergeCells('A2:F2')
+  ws.getCell('A2').value = `Ciudad: ${req.ciudadFinanciero}`
+  ws.getCell('A2').font = { italic: true, size: 10 }
+  ws.getCell('A2').alignment = { horizontal: 'center' }
+
+  const addSeccion = (titulo, filas) => {
+    ws.addRow([])
+    const tRow = ws.addRow([titulo])
+    ws.mergeCells(`A${tRow.number}:F${tRow.number}`)
+    tRow.getCell(1).font = { bold: true, size: 11, color: { argb: 'FF1E3A5F' } }
+    tRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF7' } }
+    tRow.height = 18
+
+    const hRow = ws.addRow(COLS)
+    hRow.eachCell(cell => {
+      cell.font = HEADER_FONT
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_COLOR } }
+      cell.alignment = { horizontal: 'center' }
+    })
+
+    let subtotal = 0
+    filas.forEach((r, i) => {
+      const servicio = r.punto?.nombre || r.punto_servicio_otro || '—'
+      const donante  = r.providente?.nombre || r.providente_otro || '—'
+      const telefono = r.providente?.telefono || ''
+      const row = ws.addRow([r.fecha, r.numero_recibo || '', Number(r.valor), servicio, donante, telefono])
+      row.getCell(3).numFmt = '$#,##0.00'
+      row.getCell(3).alignment = { horizontal: 'right' }
+      if (i % 2 === 1) row.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } } })
+      subtotal += Number(r.valor)
+    })
+
+    const stRow = ws.addRow(['', '', subtotal, `Subtotal ${titulo}`, '', ''])
+    stRow.getCell(2).value = 'Subtotal'
+    stRow.getCell(3).numFmt = '$#,##0.00'
+    stRow.getCell(3).font = { bold: true }
+    stRow.getCell(3).alignment = { horizontal: 'right' }
+    stRow.getCell(4).font = { bold: true }
+    return subtotal
+  }
+
+  const totEspecie = addSeccion('Donaciones en Especie', especie)
+  const totDinero  = addSeccion('Donaciones en Dinero', dinero)
+
+  ws.addRow([])
+  const tRow = ws.addRow(['', '', totEspecie + totDinero, 'TOTAL GENERAL', '', ''])
+  tRow.getCell(3).numFmt = '$#,##0.00'
+  tRow.getCell(3).font = { bold: true, size: 11 }
+  tRow.getCell(3).alignment = { horizontal: 'right' }
+  tRow.getCell(4).font = { bold: true, size: 11 }
+
+  WIDTHS.forEach((w, i) => { ws.getColumn(i + 1).width = w })
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  res.setHeader('Content-Disposition', `attachment; filename="donaciones_${nombreMes}_${anio}.xlsx"`)
+  await wb.xlsx.write(res)
+  res.end()
+})
+
 // ── Saldo inicial por cuenta ──
 app.get('/api/financiero/saldo-inicial', verificarFinanciero, async (req, res) => {
   const { cuenta } = req.query
