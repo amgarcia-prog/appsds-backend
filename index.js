@@ -2067,7 +2067,7 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
       ...(egresos || []).map(r => ({ ...r, _tipo: 'Egreso' })),
     ].sort((a, b) => a.fecha.localeCompare(b.fecha))
 
-    if (movimientos.length === 0) return res.status(404).json({ error: 'Sin imágenes en este período' })
+    if (movimientos.length === 0) return res.status(200).json({ sinImagenes: true, mensaje: 'Sin imágenes en este período' })
 
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="imagenes_banco_${nombreMes}_${anio}.pdf"`)
@@ -2087,9 +2087,8 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
       // Datos del movimiento
       doc.fontSize(9).font('Helvetica-Bold').text('Tipo:', 40, 68).font('Helvetica').text(mov._tipo, 80, 68)
       doc.fontSize(9).font('Helvetica-Bold').text('Fecha:', 40, 82).font('Helvetica').text(mov.fecha, 85, 82)
-      doc.fontSize(9).font('Helvetica-Bold').text('Valor:', 200, 82).font('Helvetica').text(fmt ? '' : '', 240, 82)
       const valorFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(mov.valor))
-      doc.text(valorFmt, 240, 82)
+      doc.fontSize(9).font('Helvetica-Bold').text('Valor:', 200, 82).font('Helvetica').text(valorFmt, 240, 82)
       if (mov.numero_recibo) { doc.fontSize(9).font('Helvetica-Bold').text('Recibo:', 350, 82).font('Helvetica').text(`#${mov.numero_recibo}`, 395, 82) }
       if (mov.concepto) { doc.fontSize(9).font('Helvetica-Bold').text('Concepto:', 40, 96).font('Helvetica').text(mov.concepto, 105, 96, { width: W - 65 }) }
       if (mov.providente_otro) { doc.fontSize(9).font('Helvetica-Bold').text('Benefactor:', 40, 110).font('Helvetica').text(mov.providente_otro, 108, 110, { width: W - 68 }) }
