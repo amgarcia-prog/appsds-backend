@@ -2054,7 +2054,7 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
     const hasta = `${anio}-${mes.padStart(2,'0')}-31`
 
     const [{ data: ingresos }, { data: egresos }] = await Promise.all([
-      supabase.from('ingresos').select('id, fecha, concepto, valor, numero_recibo, comprobante_url, providente_otro, tipo')
+      supabase.from('ingresos').select('id, fecha, concepto, valor, numero_recibo, comprobante_url, providente_otro, tipo, providente:providente_id(nombre)')
         .eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco')
         .not('comprobante_url', 'is', null).neq('comprobante_url', '').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
       supabase.from('egresos').select('id, fecha, concepto, valor, documento_url')
@@ -2092,7 +2092,8 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
       doc.fontSize(9).font('Helvetica-Bold').text('Valor:', 200, 82).font('Helvetica').text(valorFmt, 240, 82)
       if (mov.numero_recibo) { doc.fontSize(9).font('Helvetica-Bold').text('Recibo:', 350, 82).font('Helvetica').text(`#${mov.numero_recibo}`, 395, 82) }
       if (mov.concepto) { doc.fontSize(9).font('Helvetica-Bold').text('Concepto:', 40, 96).font('Helvetica').text(mov.concepto, 105, 96, { width: W - 65 }) }
-      if (mov.providente_otro) { doc.fontSize(9).font('Helvetica-Bold').text('Benefactor:', 40, 110).font('Helvetica').text(mov.providente_otro, 108, 110, { width: W - 68 }) }
+      const nombreBenefactor = mov.providente?.nombre || mov.providente_otro || ''
+      if (nombreBenefactor) { doc.fontSize(9).font('Helvetica-Bold').text('Benefactor:', 40, 110).font('Helvetica').text(nombreBenefactor, 108, 110, { width: W - 68 }) }
 
       doc.moveTo(40, 125).lineTo(40 + W, 125).lineWidth(0.5).stroke()
 
