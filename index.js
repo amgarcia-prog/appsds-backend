@@ -2116,6 +2116,75 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
   }
 })
 
+async function generarPDFImagenesCuenta(req, res, cuenta, tituloLabel, nombreArchivo) {
+  try {
+    const { mes, anio } = req.query
+    if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
+    const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+    const nombreMes = MESES[parseInt(mes) - 1]
+    const desde = `${anio}-${mes.padStart(2,'0')}-01`
+    const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+
+    const [{ data: ingresos }, { data: egresos }] = await Promise.all([
+      supabase.from('ingresos').select('id, fecha, concepto, valor, numero_recibo, comprobante_url, providente_otro, tipo, providente:providente_id(nombre)')
+        .eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta)
+        .not('comprobante_url', 'is', null).neq('comprobante_url', '').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
+      supabase.from('egresos').select('id, fecha, concepto, valor, documento_url')
+        .eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta)
+        .not('documento_url', 'is', null).neq('documento_url', '').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
+    ])
+
+    const movimientos = [
+      ...(ingresos || []).map(r => ({ ...r, _tipo: 'Ingreso', documento_url: r.comprobante_url })),
+      ...(egresos || []).map(r => ({ ...r, _tipo: 'Egreso' })),
+    ].sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+    if (movimientos.length === 0) return res.status(200).json({ sinImagenes: true, mensaje: 'Sin imágenes en este período' })
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}_${nombreMes}_${anio}.pdf"`)
+
+    const doc = new PDFDocument({ size: 'LETTER', margin: 40, autoFirstPage: false })
+    doc.pipe(res)
+
+    for (const mov of movimientos) {
+      doc.addPage()
+      const W = doc.page.width - 80
+      doc.fontSize(11).font('Helvetica-Bold')
+        .text(`${tituloLabel} — ${nombreMes.toUpperCase()} ${anio}`, 40, 40, { width: W, align: 'center' })
+      doc.moveTo(40, 58).lineTo(40 + W, 58).lineWidth(0.5).stroke()
+      doc.fontSize(9).font('Helvetica-Bold').text('Tipo:', 40, 68).font('Helvetica').text(mov._tipo, 80, 68)
+      doc.fontSize(9).font('Helvetica-Bold').text('Fecha:', 40, 82).font('Helvetica').text(mov.fecha, 85, 82)
+      const valorFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(mov.valor))
+      doc.fontSize(9).font('Helvetica-Bold').text('Valor:', 200, 82).font('Helvetica').text(valorFmt, 240, 82)
+      if (mov.numero_recibo) { doc.fontSize(9).font('Helvetica-Bold').text('Recibo:', 350, 82).font('Helvetica').text(`#${mov.numero_recibo}`, 395, 82) }
+      if (mov.concepto) { doc.fontSize(9).font('Helvetica-Bold').text('Concepto:', 40, 96).font('Helvetica').text(mov.concepto, 105, 96, { width: W - 65 }) }
+      const nombreBenefactor = mov.providente?.nombre || mov.providente_otro || ''
+      if (nombreBenefactor) { doc.fontSize(9).font('Helvetica-Bold').text('Benefactor:', 40, 110).font('Helvetica').text(nombreBenefactor, 108, 110, { width: W - 68 }) }
+      doc.moveTo(40, 125).lineTo(40 + W, 125).lineWidth(0.5).stroke()
+      const imgBuf = await descargarImagen(mov.documento_url)
+      if (imgBuf) {
+        const imgY = 133
+        const maxH = doc.page.height - imgY - 40
+        doc.image(imgBuf, 40, imgY, { width: W, height: maxH, fit: [W, maxH], align: 'center', valign: 'top' })
+      } else {
+        doc.fontSize(9).font('Helvetica').fillColor('gray').text('(Imagen no disponible)', 40, 133)
+        doc.fillColor('black')
+      }
+    }
+    doc.end()
+  } catch (err) {
+    console.error(`Error PDF imágenes ${cuenta}:`, err)
+    if (!res.headersSent) res.status(500).json({ error: err.message })
+  }
+}
+
+app.get('/api/financiero/reporte/imagenes-caja-menor', verificarFinanciero, (req, res) =>
+  generarPDFImagenesCuenta(req, res, 'caja_menor', 'CAJA MENOR', 'imagenes_caja_menor'))
+
+app.get('/api/financiero/reporte/imagenes-consumo-caja-menor', verificarFinanciero, (req, res) =>
+  generarPDFImagenesCuenta(req, res, 'consumo_caja_menor', 'CONSUMO CAJA MENOR', 'imagenes_consumo_caja_menor'))
+
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`🚀 Backend corriendo en http://localhost:${PORT}`)
