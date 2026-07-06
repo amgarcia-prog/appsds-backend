@@ -2054,16 +2054,16 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
     const hasta = `${anio}-${mes.padStart(2,'0')}-31`
 
     const [{ data: ingresos }, { data: egresos }] = await Promise.all([
-      supabase.from('ingresos').select('id, fecha, concepto, valor, numero_recibo, documento_url, providente_otro, tipo')
+      supabase.from('ingresos').select('id, fecha, concepto, valor, numero_recibo, comprobante_url, providente_otro, tipo')
         .eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco')
-        .not('documento_url', 'is', null).neq('documento_url', '').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
+        .not('comprobante_url', 'is', null).neq('comprobante_url', '').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
       supabase.from('egresos').select('id, fecha, concepto, valor, documento_url')
         .eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco')
         .not('documento_url', 'is', null).neq('documento_url', '').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
     ])
 
     const movimientos = [
-      ...(ingresos || []).map(r => ({ ...r, _tipo: 'Ingreso' })),
+      ...(ingresos || []).map(r => ({ ...r, _tipo: 'Ingreso', documento_url: r.comprobante_url })),
       ...(egresos || []).map(r => ({ ...r, _tipo: 'Egreso' })),
     ].sort((a, b) => a.fecha.localeCompare(b.fecha))
 
