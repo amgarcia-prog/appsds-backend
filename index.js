@@ -1234,6 +1234,49 @@ app.get('/api/financiero/consulta/aportes-benefactor', verificarFinanciero, asyn
   res.json(data || [])
 })
 
+app.get('/api/financiero/consulta/movimiento-banco', verificarFinanciero, async (req, res) => {
+  const { mes, anio } = req.query
+  if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
+  const desde = `${anio}-${mes.padStart(2,'0')}-01`
+  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+
+  const [{ data: saldoData }, { data: ingHist }, { data: egrHist }, { data: ingresos }, { data: egresos }] = await Promise.all([
+    supabase.from('saldos_iniciales').select('saldo').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').single(),
+    supabase.from('ingresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').lt('fecha', desde),
+    supabase.from('egresos').select('valor').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').lt('fecha', desde),
+    supabase.from('ingresos').select('*, providente:providente_id(nombre), punto:punto_servicio_id(nombre)')
+      .eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: true }),
+    supabase.from('egresos').select('*, punto:punto_servicio_id(nombre)')
+      .eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: true }),
+  ])
+
+  const saldoAnterior = Number(saldoData?.saldo || 0)
+    + (ingHist || []).reduce((s, r) => s + Number(r.valor), 0)
+    - (egrHist || []).reduce((s, r) => s + Number(r.valor), 0)
+
+  let saldo = saldoAnterior
+  const movimientos = [
+    ...(ingresos || []).map(r => ({ ...r, _tipo: 'ingreso' })),
+    ...(egresos || []).map(r => ({ ...r, _tipo: 'egreso' })),
+  ].sort((a, b) => a.fecha.localeCompare(b.fecha)).map(r => {
+    const esIngreso = r._tipo === 'ingreso'
+    saldo += esIngreso ? Number(r.valor) : -Number(r.valor)
+    return {
+      id: r.id,
+      fecha: r.fecha,
+      comprobante: r.numero_recibo || r.id?.substring(0, 8) || '',
+      benefactor: esIngreso ? (r.providente?.nombre || r.providente_otro || '') : '',
+      servicio: r.punto?.nombre || r.punto_servicio_otro || '',
+      concepto: r.concepto || '',
+      ingreso: esIngreso ? Number(r.valor) : null,
+      egreso: esIngreso ? null : Number(r.valor),
+      saldo,
+    }
+  })
+
+  res.json({ saldoAnterior, movimientos })
+})
+
 app.get('/api/financiero/proximo-recibo', verificarFinanciero, async (req, res) => {
   const { data } = await supabase.from('ingresos')
     .select('numero_recibo')
