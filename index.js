@@ -2129,7 +2129,7 @@ async function generarPDFImagenesCuenta(req, res, cuenta, tituloLabel, nombreArc
       supabase.from('ingresos').select('id, fecha, concepto, valor, numero_recibo, comprobante_url, providente_otro, tipo, providente:providente_id(nombre)')
         .eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta)
         .not('comprobante_url', 'is', null).neq('comprobante_url', '').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
-      supabase.from('egresos').select('id, fecha, concepto, valor, documento_url')
+      supabase.from('egresos').select('id, fecha, concepto, valor, documento_url, punto_servicio_otro, punto:punto_servicio_id(nombre)')
         .eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta)
         .not('documento_url', 'is', null).neq('documento_url', '').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
     ])
@@ -2158,13 +2158,17 @@ async function generarPDFImagenesCuenta(req, res, cuenta, tituloLabel, nombreArc
       const valorFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(mov.valor))
       doc.fontSize(9).font('Helvetica-Bold').text('Valor:', 200, 82).font('Helvetica').text(valorFmt, 240, 82)
       if (mov.numero_recibo) { doc.fontSize(9).font('Helvetica-Bold').text('Recibo:', 350, 82).font('Helvetica').text(`#${mov.numero_recibo}`, 395, 82) }
-      if (mov.concepto) { doc.fontSize(9).font('Helvetica-Bold').text('Concepto:', 40, 96).font('Helvetica').text(mov.concepto, 105, 96, { width: W - 65 }) }
+      const servicio = mov.punto?.nombre || mov.punto_servicio_otro || ''
+      let lineY = 96
+      if (servicio) { doc.fontSize(9).font('Helvetica-Bold').text('Servicio:', 40, lineY).font('Helvetica').text(servicio, 100, lineY, { width: W - 60 }); lineY += 14 }
+      if (mov.concepto) { doc.fontSize(9).font('Helvetica-Bold').text('Concepto:', 40, lineY).font('Helvetica').text(mov.concepto, 105, lineY, { width: W - 65 }); lineY += 14 }
       const nombreBenefactor = mov.providente?.nombre || mov.providente_otro || ''
-      if (nombreBenefactor) { doc.fontSize(9).font('Helvetica-Bold').text('Benefactor:', 40, 110).font('Helvetica').text(nombreBenefactor, 108, 110, { width: W - 68 }) }
-      doc.moveTo(40, 125).lineTo(40 + W, 125).lineWidth(0.5).stroke()
+      if (nombreBenefactor) { doc.fontSize(9).font('Helvetica-Bold').text('Benefactor:', 40, lineY).font('Helvetica').text(nombreBenefactor, 108, lineY, { width: W - 68 }); lineY += 14 }
+      const sepY = Math.max(lineY + 2, 125)
+      doc.moveTo(40, sepY).lineTo(40 + W, sepY).lineWidth(0.5).stroke()
       const imgBuf = await descargarImagen(mov.documento_url)
       if (imgBuf) {
-        const imgY = 133
+        const imgY = sepY + 8
         const maxH = doc.page.height - imgY - 40
         doc.image(imgBuf, 40, imgY, { width: W, height: maxH, fit: [W, maxH], align: 'center', valign: 'top' })
       } else {
