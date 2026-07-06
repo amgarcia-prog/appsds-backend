@@ -2056,10 +2056,10 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
     const [{ data: ingresos }, { data: egresos }] = await Promise.all([
       supabase.from('ingresos').select('id, fecha, concepto, valor, numero_recibo, documento_url, providente_otro, tipo')
         .eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco')
-        .not('documento_url', 'is', null).gte('fecha', desde).lte('fecha', hasta).order('fecha'),
+        .not('documento_url', 'is', null).neq('documento_url', '').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
       supabase.from('egresos').select('id, fecha, concepto, valor, documento_url')
         .eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco')
-        .not('documento_url', 'is', null).gte('fecha', desde).lte('fecha', hasta).order('fecha'),
+        .not('documento_url', 'is', null).neq('documento_url', '').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
     ])
 
     const movimientos = [
@@ -2067,6 +2067,7 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
       ...(egresos || []).map(r => ({ ...r, _tipo: 'Egreso' })),
     ].sort((a, b) => a.fecha.localeCompare(b.fecha))
 
+    console.log(`Imágenes banco ${nombreMes}/${anio}: ingresos=${(ingresos||[]).length} egresos=${(egresos||[]).length} con_img=${movimientos.length}`)
     if (movimientos.length === 0) return res.status(200).json({ sinImagenes: true, mensaje: 'Sin imágenes en este período' })
 
     res.setHeader('Content-Type', 'application/pdf')
