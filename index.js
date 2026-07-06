@@ -1235,10 +1235,8 @@ app.get('/api/financiero/consulta/aportes-benefactor', verificarFinanciero, asyn
 })
 
 app.get('/api/financiero/consulta/movimiento-banco', verificarFinanciero, async (req, res) => {
-  const { mes, anio } = req.query
-  if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
-  const desde = `${anio}-${mes.padStart(2,'0')}-01`
-  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+  const { desde, hasta } = req.query
+  if (!desde || !hasta) return res.status(400).json({ error: 'Fechas requeridas' })
 
   const [{ data: saldoData }, { data: ingHist }, { data: egrHist }, { data: ingresos }, { data: egresos }] = await Promise.all([
     supabase.from('saldos_iniciales').select('saldo').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').single(),
