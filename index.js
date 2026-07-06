@@ -1938,6 +1938,7 @@ app.get('/api/financiero/recibo/:id', verificarFinanciero, async (req, res) => {
 
 // ── Recibos ZIP del mes ──
 app.get('/api/financiero/reporte/recibos-mes', verificarFinanciero, async (req, res) => {
+  try {
   const { mes, anio } = req.query
   if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
 
@@ -1979,6 +1980,10 @@ app.get('/api/financiero/reporte/recibos-mes', verificarFinanciero, async (req, 
 
   archive.on('error', err => { console.error('ZIP error:', err); if (!res.headersSent) res.status(500).json({ error: err.message }) })
   archive.finalize()
+  } catch (err) {
+    console.error('Error ZIP recibos:', err)
+    if (!res.headersSent) res.status(500).json({ error: err.message })
+  }
 })
 
 const PORT = process.env.PORT || 3001
