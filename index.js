@@ -2027,6 +2027,94 @@ app.get('/api/financiero/reporte/recibos-mes', verificarFinanciero, async (req, 
   }
 })
 
+// ── PDF de imágenes por cuenta ──
+async function descargarImagen(url) {
+  return new Promise((resolve) => {
+    try {
+      const https = require('https')
+      const http = require('http')
+      const mod = url.startsWith('https') ? https : http
+      mod.get(url, (r) => {
+        const chunks = []
+        r.on('data', c => chunks.push(c))
+        r.on('end', () => resolve(Buffer.concat(chunks)))
+        r.on('error', () => resolve(null))
+      }).on('error', () => resolve(null))
+    } catch (e) { resolve(null) }
+  })
+}
+
+app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (req, res) => {
+  try {
+    const { mes, anio } = req.query
+    if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
+    const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+    const nombreMes = MESES[parseInt(mes) - 1]
+    const desde = `${anio}-${mes.padStart(2,'0')}-01`
+    const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+
+    const [{ data: ingresos }, { data: egresos }] = await Promise.all([
+      supabase.from('ingresos').select('id, fecha, concepto, valor, numero_recibo, documento_url, providente_otro, tipo')
+        .eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco')
+        .not('documento_url', 'is', null).gte('fecha', desde).lte('fecha', hasta).order('fecha'),
+      supabase.from('egresos').select('id, fecha, concepto, valor, documento_url')
+        .eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco')
+        .not('documento_url', 'is', null).gte('fecha', desde).lte('fecha', hasta).order('fecha'),
+    ])
+
+    const movimientos = [
+      ...(ingresos || []).map(r => ({ ...r, _tipo: 'Ingreso' })),
+      ...(egresos || []).map(r => ({ ...r, _tipo: 'Egreso' })),
+    ].sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+    if (movimientos.length === 0) return res.status(404).json({ error: 'Sin imágenes en este período' })
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="imagenes_banco_${nombreMes}_${anio}.pdf"`)
+
+    const doc = new PDFDocument({ size: 'LETTER', margin: 40, autoFirstPage: false })
+    doc.pipe(res)
+
+    for (const mov of movimientos) {
+      doc.addPage()
+      const W = doc.page.width - 80
+
+      // Encabezado
+      doc.fontSize(11).font('Helvetica-Bold')
+        .text(`BANCO — ${nombreMes.toUpperCase()} ${anio}`, 40, 40, { width: W, align: 'center' })
+      doc.moveTo(40, 58).lineTo(40 + W, 58).lineWidth(0.5).stroke()
+
+      // Datos del movimiento
+      doc.fontSize(9).font('Helvetica-Bold').text('Tipo:', 40, 68).font('Helvetica').text(mov._tipo, 80, 68)
+      doc.fontSize(9).font('Helvetica-Bold').text('Fecha:', 40, 82).font('Helvetica').text(mov.fecha, 85, 82)
+      doc.fontSize(9).font('Helvetica-Bold').text('Valor:', 200, 82).font('Helvetica').text(fmt ? '' : '', 240, 82)
+      const valorFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(mov.valor))
+      doc.text(valorFmt, 240, 82)
+      if (mov.numero_recibo) { doc.fontSize(9).font('Helvetica-Bold').text('Recibo:', 350, 82).font('Helvetica').text(`#${mov.numero_recibo}`, 395, 82) }
+      if (mov.concepto) { doc.fontSize(9).font('Helvetica-Bold').text('Concepto:', 40, 96).font('Helvetica').text(mov.concepto, 105, 96, { width: W - 65 }) }
+      if (mov.providente_otro) { doc.fontSize(9).font('Helvetica-Bold').text('Benefactor:', 40, 110).font('Helvetica').text(mov.providente_otro, 108, 110, { width: W - 68 }) }
+
+      doc.moveTo(40, 125).lineTo(40 + W, 125).lineWidth(0.5).stroke()
+
+      // Imagen
+      const imgBuf = await descargarImagen(mov.documento_url)
+      if (imgBuf) {
+        const imgY = 133
+        const maxH = doc.page.height - imgY - 40
+        doc.image(imgBuf, 40, imgY, { width: W, height: maxH, fit: [W, maxH], align: 'center', valign: 'top' })
+      } else {
+        doc.fontSize(9).font('Helvetica').fillColor('gray').text('(Imagen no disponible)', 40, 133)
+        doc.fillColor('black')
+      }
+    }
+
+    doc.end()
+  } catch (err) {
+    console.error('Error PDF imágenes banco:', err)
+    if (!res.headersSent) res.status(500).json({ error: err.message })
+  }
+})
+
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`🚀 Backend corriendo en http://localhost:${PORT}`)
