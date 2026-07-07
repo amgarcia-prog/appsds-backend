@@ -1338,7 +1338,6 @@ app.post('/api/financiero/enviar-recibo/:id', verificarFinanciero, async (req, r
 
           <p style="font-size: 14px; color: #666; margin-top: 32px;">
             Con gratitud,<br>
-            <strong>${receptor || 'Comunidad Servidores del Servidor'}</strong><br>
             Área Financiera
           </p>
         </div>
