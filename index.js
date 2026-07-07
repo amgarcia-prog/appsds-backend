@@ -1306,7 +1306,7 @@ app.post('/api/financiero/enviar-recibo/:id', verificarFinanciero, async (req, r
     const numRecibo = ingreso.numero_recibo || ingreso.id.substring(0, 8)
 
     await resend.emails.send({
-      from: 'Servidores del Servidor <financiero@appsds.vercel.app>',
+      from: 'Servidores del Servidor <amgarcia@servidoresdelservidor.org>',
       to: correo,
       subject: `Recibo de donación No. ${numRecibo} — Gracias por tu generosidad`,
       html: `
