@@ -1287,10 +1287,11 @@ app.post('/api/financiero/enviar-recibo/:id', verificarFinanciero, async (req, r
 
     const [{ data: cfg }, { data: user }, logo] = await Promise.all([
       supabase.from('config_ciudad').select('cuenta_bancaria').eq('ciudad', req.ciudadFinanciero).single(),
-      supabase.from('registros').select('primer_nombre, primer_apellido').eq('id', req.headers['x-miembro-id']).single(),
+      supabase.from('registros').select('primer_nombre, primer_apellido, correo_electronico').eq('id', req.headers['x-miembro-id']).single(),
       getLogoBuffer(),
     ])
     const receptor = user ? `${user.primer_nombre} ${user.primer_apellido}` : ''
+    const correoReceptor = user?.correo_electronico || null
 
     const pdfBuffer = await new Promise((resolve, reject) => {
       const chunks = []
@@ -1305,7 +1306,7 @@ app.post('/api/financiero/enviar-recibo/:id', verificarFinanciero, async (req, r
     const nombre = ingreso.providente?.nombre || ingreso.providente_otro || 'Benefactor'
     const numRecibo = ingreso.numero_recibo || ingreso.id.substring(0, 8)
 
-    await resend.emails.send({
+    const emailPayload = {
       from: 'Servidores del Servidor <amgarcia@servidoresdelservidor.org>',
       to: correo,
       subject: `Recibo de donación No. ${numRecibo} — Gracias por tu generosidad`,
@@ -1346,7 +1347,9 @@ app.post('/api/financiero/enviar-recibo/:id', verificarFinanciero, async (req, r
         filename: `recibo_${numRecibo}.pdf`,
         content: pdfBuffer.toString('base64'),
       }],
-    })
+    }
+    if (correoReceptor) emailPayload.reply_to = correoReceptor
+    await resend.emails.send(emailPayload)
 
     res.json({ ok: true, mensaje: `Recibo enviado a ${correo}` })
   } catch (err) {
