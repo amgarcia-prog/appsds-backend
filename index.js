@@ -1138,7 +1138,7 @@ app.delete('/api/financiero/providentes/:id', verificarFinanciero, async (req, r
 app.get('/api/financiero/ingresos', verificarFinanciero, async (req, res) => {
   const { mes, anio } = req.query
   let query = supabase.from('ingresos')
-    .select('*, providente:providente_id(nombre), punto:punto_servicio_id(nombre)')
+    .select('*, providente:providente_id(nombre, correo), punto:punto_servicio_id(nombre)')
     .eq('ciudad', req.ciudadFinanciero).order('fecha', { ascending: false })
   if (mes && anio) {
     const desde = `${anio}-${mes.padStart(2,'0')}-01`
@@ -1273,6 +1273,86 @@ app.get('/api/financiero/consulta/movimiento-banco', verificarFinanciero, async 
   })
 
   res.json({ saldoAnterior, movimientos })
+})
+
+app.post('/api/financiero/enviar-recibo/:id', verificarFinanciero, async (req, res) => {
+  try {
+    const { data: ingreso } = await supabase.from('ingresos')
+      .select('*, providente:providente_id(nombre, correo, numero_identificacion, telefono, direccion)')
+      .eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero).single()
+    if (!ingreso) return res.status(404).json({ ok: false, mensaje: 'Ingreso no encontrado' })
+
+    const correo = ingreso.providente?.correo
+    if (!correo) return res.status(400).json({ ok: false, mensaje: 'El benefactor no tiene correo registrado' })
+
+    const [{ data: cfg }, { data: user }, logo] = await Promise.all([
+      supabase.from('config_ciudad').select('cuenta_bancaria').eq('ciudad', req.ciudadFinanciero).single(),
+      supabase.from('registros').select('primer_nombre, primer_apellido').eq('id', req.headers['x-miembro-id']).single(),
+      getLogoBuffer(),
+    ])
+    const receptor = user ? `${user.primer_nombre} ${user.primer_apellido}` : ''
+
+    const pdfBuffer = await new Promise((resolve, reject) => {
+      const chunks = []
+      const doc = new PDFDocument({ size: 'LETTER', margin: 0 })
+      doc.on('data', c => chunks.push(c))
+      doc.on('end', () => resolve(Buffer.concat(chunks)))
+      doc.on('error', reject)
+      generarReciboPDF(doc, ingreso, cfg || {}, receptor, logo)
+      doc.end()
+    })
+
+    const nombre = ingreso.providente?.nombre || ingreso.providente_otro || 'Benefactor'
+    const numRecibo = ingreso.numero_recibo || ingreso.id.substring(0, 8)
+
+    await resend.emails.send({
+      from: 'Servidores del Servidor <financiero@appsds.vercel.app>',
+      to: correo,
+      subject: `Recibo de donación No. ${numRecibo} — Gracias por tu generosidad`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <h2 style="color: #1e3a5f; margin-bottom: 4px;">Asociación Privada de Fieles Laicos</h2>
+            <p style="color: #666; font-size: 13px; margin: 0;">"Donum Christi — Comunidad Apostólica Servidores del Servidor"</p>
+          </div>
+
+          <p style="font-size: 15px;">Estimado/a <strong>${nombre}</strong>,</p>
+
+          <p style="font-size: 15px; line-height: 1.6;">
+            Con gratitud y alegría confirmamos la recepción de tu donación registrada con el recibo <strong>No. ${numRecibo}</strong>.
+            Tu generosidad es un testimonio vivo del amor de Dios hacia los más necesitados y un pilar fundamental
+            para nuestra misión.
+          </p>
+
+          <blockquote style="border-left: 4px solid #1e3a5f; margin: 24px 0; padding: 12px 20px; background: #f0f4f8; border-radius: 0 8px 8px 0;">
+            <p style="font-style: italic; font-size: 15px; color: #1e3a5f; margin: 0 0 8px 0;">
+              "El que da al pobre, presta a Dios — y Dios nunca queda en deuda con nadie."
+            </p>
+            <p style="font-size: 13px; color: #666; margin: 0;">— San Padre Pío de Pietrelcina</p>
+          </blockquote>
+
+          <p style="font-size: 15px; line-height: 1.6;">
+            Adjunto encontrarás el recibo de tu donación. Que el Señor y nuestro querido Padre Pío te colmen de bendiciones.
+          </p>
+
+          <p style="font-size: 14px; color: #666; margin-top: 32px;">
+            Con gratitud,<br>
+            <strong>${receptor || 'Comunidad Servidores del Servidor'}</strong><br>
+            Área Financiera
+          </p>
+        </div>
+      `,
+      attachments: [{
+        filename: `recibo_${numRecibo}.pdf`,
+        content: pdfBuffer.toString('base64'),
+      }],
+    })
+
+    res.json({ ok: true, mensaje: `Recibo enviado a ${correo}` })
+  } catch (err) {
+    console.error('Error enviando recibo:', err)
+    res.status(500).json({ ok: false, mensaje: err.message })
+  }
 })
 
 app.get('/api/financiero/proximo-recibo', verificarFinanciero, async (req, res) => {
