@@ -1289,6 +1289,27 @@ app.get('/api/financiero/consulta/movimiento-banco', verificarFinanciero, async 
   res.json({ saldoAnterior, movimientos })
 })
 
+app.get('/api/financiero/consulta/busqueda-concepto', verificarFinanciero, async (req, res) => {
+  const { desde, hasta, q } = req.query
+  if (!desde || !hasta || !q) return res.status(400).json({ error: 'Parámetros requeridos' })
+
+  const [{ data: ingresos }, { data: egresos }] = await Promise.all([
+    supabase.from('ingresos').select('id, fecha, concepto, valor, cuenta, providente:providente_id(nombre), providente_otro')
+      .eq('ciudad', req.ciudadFinanciero).gte('fecha', desde).lte('fecha', hasta)
+      .ilike('concepto', `%${q}%`).order('fecha', { ascending: true }),
+    supabase.from('egresos').select('id, fecha, concepto, valor, cuenta')
+      .eq('ciudad', req.ciudadFinanciero).gte('fecha', desde).lte('fecha', hasta)
+      .ilike('concepto', `%${q}%`).order('fecha', { ascending: true }),
+  ])
+
+  const resultado = [
+    ...(ingresos || []).map(r => ({ ...r, _tipo: 'ingreso', benefactor: r.providente?.nombre || r.providente_otro || '' })),
+    ...(egresos || []).map(r => ({ ...r, _tipo: 'egreso', benefactor: '' })),
+  ].sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+  res.json(resultado)
+})
+
 app.post('/api/financiero/enviar-recibo/:id', verificarFinanciero, async (req, res) => {
   try {
     const { data: ingreso } = await supabase.from('ingresos')
