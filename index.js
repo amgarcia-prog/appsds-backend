@@ -1175,6 +1175,20 @@ app.delete('/api/financiero/ingresos/:id', verificarFinanciero, async (req, res)
   res.json({ ok: true })
 })
 
+app.patch('/api/financiero/ingresos/:id/revisado', verificarFinanciero, async (req, res) => {
+  const { revisado } = req.body
+  const { error } = await supabase.from('ingresos').update({ revisado }).eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.patch('/api/financiero/egresos/:id/revisado', verificarFinanciero, async (req, res) => {
+  const { revisado } = req.body
+  const { error } = await supabase.from('egresos').update({ revisado }).eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 // ── Egresos ──
 app.get('/api/financiero/egresos', verificarFinanciero, async (req, res) => {
   const { mes, anio } = req.query
