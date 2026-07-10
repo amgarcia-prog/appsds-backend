@@ -1310,6 +1310,21 @@ app.get('/api/financiero/consulta/busqueda-concepto', verificarFinanciero, async
   res.json(resultado)
 })
 
+app.get('/api/financiero/consulta/donaciones-especie', verificarFinanciero, async (req, res) => {
+  const { desde, hasta } = req.query
+  if (!desde || !hasta) return res.status(400).json({ error: 'Fechas requeridas' })
+
+  const { data, error } = await supabase.from('ingresos')
+    .select('id, fecha, concepto, valor, providente:providente_id(nombre), providente_otro, punto:punto_servicio_id(nombre), punto_servicio_otro')
+    .eq('ciudad', req.ciudadFinanciero)
+    .eq('cuenta', 'especie')
+    .gte('fecha', desde).lte('fecha', hasta)
+    .order('fecha', { ascending: true })
+
+  if (error) return res.status(500).json({ error: error.message })
+  res.json(data || [])
+})
+
 app.post('/api/financiero/enviar-recibo/:id', verificarFinanciero, async (req, res) => {
   try {
     const { data: ingreso } = await supabase.from('ingresos')
