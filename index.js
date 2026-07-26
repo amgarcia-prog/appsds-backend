@@ -1138,7 +1138,7 @@ app.delete('/api/financiero/providentes/:id', verificarFinanciero, async (req, r
 app.get('/api/financiero/ingresos', verificarFinanciero, async (req, res) => {
   const { mes, anio } = req.query
   let query = supabase.from('ingresos')
-    .select('*, providente:providente_id(nombre, correo), punto:punto_servicio_id(nombre), creador:registrado_por(nombre), editor:editado_por(nombre)')
+    .select('*, providente:providente_id(nombre, correo), punto:punto_servicio_id(nombre), creador:registrado_por(primer_nombre, primer_apellido), editor:editado_por(primer_nombre, primer_apellido)')
     .eq('ciudad', req.ciudadFinanciero).order('fecha', { ascending: false })
   if (mes && anio) {
     const desde = `${anio}-${mes.padStart(2,'0')}-01`
@@ -1196,7 +1196,7 @@ app.patch('/api/financiero/egresos/:id/revisado', verificarFinanciero, async (re
 app.get('/api/financiero/egresos', verificarFinanciero, async (req, res) => {
   const { mes, anio } = req.query
   let query = supabase.from('egresos')
-    .select('*, punto:punto_servicio_id(nombre), creador:registrado_por(nombre), editor:editado_por(nombre)')
+    .select('*, punto:punto_servicio_id(nombre), creador:registrado_por(primer_nombre, primer_apellido), editor:editado_por(primer_nombre, primer_apellido)')
     .eq('ciudad', req.ciudadFinanciero).order('fecha', { ascending: false })
   if (mes && anio) {
     const desde = `${anio}-${mes.padStart(2,'0')}-01`
