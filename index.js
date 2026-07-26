@@ -1138,7 +1138,7 @@ app.delete('/api/financiero/providentes/:id', verificarFinanciero, async (req, r
 app.get('/api/financiero/ingresos', verificarFinanciero, async (req, res) => {
   const { mes, anio } = req.query
   let query = supabase.from('ingresos')
-    .select('*, providente:providente_id(nombre, correo), punto:punto_servicio_id(nombre)')
+    .select('*, providente:providente_id(nombre, correo), punto:punto_servicio_id(nombre), creador:registrado_por(nombre), editor:editado_por(nombre)')
     .eq('ciudad', req.ciudadFinanciero).order('fecha', { ascending: false })
   if (mes && anio) {
     const desde = `${anio}-${mes.padStart(2,'0')}-01`
@@ -1164,8 +1164,9 @@ app.post('/api/financiero/ingresos', verificarFinanciero, async (req, res) => {
 app.put('/api/financiero/ingresos/:id', verificarFinanciero, async (req, res) => {
   const { fecha, providente_id, providente_otro, punto_servicio_id, punto_servicio_otro, tipo, concepto, mes_aporte, valor, comprobante_url, numero_recibo, forma_donacion, cuenta } = req.body
   const psId = punto_servicio_id === '__otro__' ? null : (punto_servicio_id || null)
+  const editor = req.headers['x-miembro-id']
   const { error } = await supabase.from('ingresos')
-    .update({ fecha, providente_id: providente_id || null, providente_otro: providente_otro || null, punto_servicio_id: psId, punto_servicio_otro: punto_servicio_otro || null, tipo, concepto, mes_aporte: mes_aporte || null, valor, comprobante_url: comprobante_url || null, numero_recibo: numero_recibo || null, forma_donacion: forma_donacion || 'dinero', cuenta: cuenta || 'banco' })
+    .update({ fecha, providente_id: providente_id || null, providente_otro: providente_otro || null, punto_servicio_id: psId, punto_servicio_otro: punto_servicio_otro || null, tipo, concepto, mes_aporte: mes_aporte || null, valor, comprobante_url: comprobante_url || null, numero_recibo: numero_recibo || null, forma_donacion: forma_donacion || 'dinero', cuenta: cuenta || 'banco', editado_por: editor })
     .eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
@@ -1195,7 +1196,7 @@ app.patch('/api/financiero/egresos/:id/revisado', verificarFinanciero, async (re
 app.get('/api/financiero/egresos', verificarFinanciero, async (req, res) => {
   const { mes, anio } = req.query
   let query = supabase.from('egresos')
-    .select('*, punto:punto_servicio_id(nombre)')
+    .select('*, punto:punto_servicio_id(nombre), creador:registrado_por(nombre), editor:editado_por(nombre)')
     .eq('ciudad', req.ciudadFinanciero).order('fecha', { ascending: false })
   if (mes && anio) {
     const desde = `${anio}-${mes.padStart(2,'0')}-01`
@@ -1223,8 +1224,9 @@ app.put('/api/financiero/egresos/:id', verificarFinanciero, async (req, res) => 
   const { fecha, punto_servicio_id, punto_servicio_otro, concepto, valor, documento_url, tipo, cuenta } = req.body
   const psId = punto_servicio_id === '__otro__' ? null : (punto_servicio_id || null)
   const tipoFinal = tipo || 'egreso_servicio'
+  const editor = req.headers['x-miembro-id']
   const { error } = await supabase.from('egresos')
-    .update({ fecha, punto_servicio_id: psId, punto_servicio_otro: punto_servicio_otro || null, concepto, valor, documento_url: documento_url || null, tipo: tipoFinal, es_costo_financiero: tipoFinal === 'costo_financiero', cuenta: cuenta || 'banco' })
+    .update({ fecha, punto_servicio_id: psId, punto_servicio_otro: punto_servicio_otro || null, concepto, valor, documento_url: documento_url || null, tipo: tipoFinal, es_costo_financiero: tipoFinal === 'costo_financiero', cuenta: cuenta || 'banco', editado_por: editor })
     .eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
