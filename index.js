@@ -2327,6 +2327,65 @@ app.get('/api/financiero/reporte/imagenes-caja-menor', verificarFinanciero, (req
 app.get('/api/financiero/reporte/imagenes-consumo-caja-menor', verificarFinanciero, (req, res) =>
   generarPDFImagenesCuenta(req, res, 'consumo_caja_menor', 'CONSUMO CAJA MENOR', 'imagenes_consumo_caja_menor'))
 
+// ── Evaluación de pilares ─────────────────────────────────────────────────────
+
+// Login evaluación
+app.post('/api/evaluacion/login', async (req, res) => {
+  const { numero_identificacion, clave } = req.body
+  if (!numero_identificacion || !clave) return res.status(400).json({ ok: false, mensaje: 'Faltan campos' })
+  const { data, error } = await supabase.from('registros')
+    .select('id, primer_nombre, primer_apellido, estado_consagracion, responsabilidades_pilar, clave')
+    .eq('numero_identificacion', numero_identificacion).single()
+  if (error || !data) return res.status(401).json({ ok: false, mensaje: 'Usuario no encontrado' })
+  if (data.clave !== clave) return res.status(401).json({ ok: false, mensaje: 'Clave incorrecta' })
+  if (data.estado_consagracion !== 'pilar') return res.status(403).json({ ok: false, mensaje: 'Solo los pilares pueden acceder a esta evaluación' })
+  res.json({ ok: true, id: data.id, nombre: `${data.primer_nombre} ${data.primer_apellido}`, responsabilidades_pilar: data.responsabilidades_pilar })
+})
+
+// Lista de pilares
+app.get('/api/evaluacion/pilares', async (req, res) => {
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, primer_apellido')
+    .eq('estado_consagracion', 'pilar')
+    .order('primer_apellido')
+  res.json(data || [])
+})
+
+// Guardar evaluaciones (array de evaluaciones)
+app.post('/api/evaluacion/guardar', async (req, res) => {
+  const { anio, evaluador_id, evaluaciones } = req.body
+  if (!anio || !evaluador_id || !evaluaciones?.length) return res.status(400).json({ ok: false, mensaje: 'Faltan datos' })
+  const rows = evaluaciones.map(e => ({
+    anio, evaluador_id, evaluado_id: e.evaluado_id,
+    es_autoevaluacion: e.es_autoevaluacion || false,
+    p1_reuniones: e.p1, p2_compromisos: e.p2, p3_seguimiento: e.p3
+  }))
+  const { error } = await supabase.from('evaluaciones_pilar').upsert(rows, { onConflict: 'anio,evaluador_id,evaluado_id' })
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Verificar si ya evaluó
+app.get('/api/evaluacion/ya-evaluo', async (req, res) => {
+  const { anio, evaluador_id } = req.query
+  const { data } = await supabase.from('evaluaciones_pilar')
+    .select('id').eq('anio', anio).eq('evaluador_id', evaluador_id).limit(1)
+  res.json({ ya_evaluo: data && data.length > 0 })
+})
+
+// Resultados (solo para Servidor General u Organizacional)
+app.get('/api/evaluacion/resultados', async (req, res) => {
+  const { anio, id } = req.query
+  const { data: reg } = await supabase.from('registros')
+    .select('responsabilidades_pilar').eq('id', id).single()
+  if (!reg || !['Servidor General', 'Organizacional'].includes(reg.responsabilidades_pilar))
+    return res.status(403).json({ ok: false, mensaje: 'No tienes permiso para ver los resultados' })
+  const { data } = await supabase.from('evaluaciones_pilar')
+    .select('evaluado_id, es_autoevaluacion, p1_reuniones, p2_compromisos, p3_seguimiento, evaluado:evaluado_id(primer_nombre, primer_apellido)')
+    .eq('anio', anio)
+  res.json(data || [])
+})
+
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`🚀 Backend corriendo en http://localhost:${PORT}`)
