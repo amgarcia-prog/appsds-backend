@@ -2345,7 +2345,7 @@ app.post('/api/evaluacion/login', async (req, res) => {
 // Lista de pilares
 app.get('/api/evaluacion/pilares', async (req, res) => {
   const { data } = await supabase.from('registros')
-    .select('id, primer_nombre, primer_apellido')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido')
     .eq('estado_consagracion', 'pilar')
     .order('primer_apellido')
   res.json(data || [])
