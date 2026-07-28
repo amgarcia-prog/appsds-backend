@@ -2378,8 +2378,10 @@ app.get('/api/evaluacion/resultados', async (req, res) => {
   const { anio, id } = req.query
   const { data: reg } = await supabase.from('registros')
     .select('responsabilidades_pilar').eq('id', id).single()
-  const rp = reg?.responsabilidades_pilar || []
+  let rp = reg?.responsabilidades_pilar || []
+  if (typeof rp === 'string') { try { rp = JSON.parse(rp) } catch { rp = [rp] } }
   const rpArr = Array.isArray(rp) ? rp : [rp]
+  console.log('responsabilidades_pilar:', rpArr)
   if (!reg || !rpArr.some(x => ['Servidor General', 'Servidor General Suplente', 'Organizacional'].includes(x)))
     return res.status(403).json({ ok: false, mensaje: 'No tienes permiso para ver los resultados' })
   const { data } = await supabase.from('evaluaciones_pilar')
