@@ -2380,7 +2380,7 @@ app.get('/api/evaluacion/resultados', async (req, res) => {
     .select('responsabilidades_pilar').eq('id', id).single()
   const rp = reg?.responsabilidades_pilar || []
   const rpArr = Array.isArray(rp) ? rp : [rp]
-  if (!reg || !rpArr.some(x => ['Servidor General', 'Organizacional'].includes(x)))
+  if (!reg || !rpArr.some(x => ['Servidor General', 'Servidor General Suplente', 'Organizacional'].includes(x)))
     return res.status(403).json({ ok: false, mensaje: 'No tienes permiso para ver los resultados' })
   const { data } = await supabase.from('evaluaciones_pilar')
     .select('evaluado_id, es_autoevaluacion, p1_reuniones, p2_compromisos, p3_seguimiento, evaluado:evaluado_id(primer_nombre, primer_apellido)')
