@@ -2327,6 +2327,34 @@ app.get('/api/financiero/reporte/imagenes-caja-menor', verificarFinanciero, (req
 app.get('/api/financiero/reporte/imagenes-consumo-caja-menor', verificarFinanciero, (req, res) =>
   generarPDFImagenesCuenta(req, res, 'consumo_caja_menor', 'CONSUMO CAJA MENOR', 'imagenes_consumo_caja_menor'))
 
+// ── Cumpleaños por periodo ────────────────────────────────────────────────────
+app.get('/api/miembro/cumpleanos', async (req, res) => {
+  const { desde, hasta, ciudad } = req.query
+  if (!desde || !hasta || !ciudad) return res.status(400).json({ ok: false, mensaje: 'Faltan parámetros' })
+  const [desdeM, desdeD] = desde.split('-').slice(1).map(Number)
+  const [hastaM, hastaD] = hasta.split('-').slice(1).map(Number)
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, fecha_nacimiento, estado_consagracion, foto_url')
+    .ilike('ciudad_donde_sirve', ciudad)
+    .not('fecha_nacimiento', 'is', null)
+    .neq('estado_consagracion', 'fallecido')
+  // Filtrar por mes/dia dentro del rango
+  const filtrados = (data || []).filter(r => {
+    if (!r.fecha_nacimiento) return false
+    const [, m, d] = r.fecha_nacimiento.split('-').map(Number)
+    const cumple = m * 100 + d
+    const ini = desdeM * 100 + desdeD
+    const fin = hastaM * 100 + hastaD
+    return ini <= fin ? cumple >= ini && cumple <= fin : cumple >= ini || cumple <= fin
+  })
+  filtrados.sort((a, b) => {
+    const [, am, ad] = a.fecha_nacimiento.split('-').map(Number)
+    const [, bm, bd] = b.fecha_nacimiento.split('-').map(Number)
+    return (am * 100 + ad) - (bm * 100 + bd)
+  })
+  res.json(filtrados)
+})
+
 // ── Evaluación de pilares ─────────────────────────────────────────────────────
 
 // Login evaluación
