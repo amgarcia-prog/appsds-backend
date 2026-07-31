@@ -2172,12 +2172,18 @@ async function descargarImagen(url) {
       const https = require('https')
       const http = require('http')
       const mod = url.startsWith('https') ? https : http
-      mod.get(url, (r) => {
+      const req = mod.get(url, (r) => {
+        if (r.statusCode === 301 || r.statusCode === 302) {
+          descargarImagen(r.headers.location).then(resolve)
+          return
+        }
         const chunks = []
         r.on('data', c => chunks.push(c))
         r.on('end', () => resolve(Buffer.concat(chunks)))
         r.on('error', () => resolve(null))
-      }).on('error', () => resolve(null))
+      })
+      req.on('error', () => resolve(null))
+      req.setTimeout(10000, () => { req.destroy(); resolve(null) })
     } catch (e) { resolve(null) }
   })
 }
