@@ -2214,22 +2214,23 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
     console.log(`Imágenes banco ${nombreMes}/${anio}: ingresos=${(ingresos||[]).length} egresos=${(egresos||[]).length} con_img=${movimientos.length}`)
     if (movimientos.length === 0) return res.status(200).json({ sinImagenes: true, mensaje: 'Sin imágenes en este período' })
 
-    res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', `attachment; filename="imagenes_banco_${nombreMes}_${anio}.pdf"`)
-
     const doc = new PDFDocument({ size: 'LETTER', margin: 40, autoFirstPage: false })
-    doc.pipe(res)
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+
+    const pdfReady = new Promise((resolve, reject) => {
+      doc.on('end', resolve)
+      doc.on('error', reject)
+    })
 
     for (const mov of movimientos) {
       doc.addPage()
       const W = doc.page.width - 80
 
-      // Encabezado
       doc.fontSize(11).font('Helvetica-Bold')
         .text(`BANCO — ${nombreMes.toUpperCase()} ${anio}`, 40, 40, { width: W, align: 'center' })
       doc.moveTo(40, 58).lineTo(40 + W, 58).lineWidth(0.5).stroke()
 
-      // Datos del movimiento
       doc.fontSize(9).font('Helvetica-Bold').text('Tipo:', 40, 68).font('Helvetica').text(mov._tipo, 80, 68)
       doc.fontSize(9).font('Helvetica-Bold').text('Fecha:', 40, 82).font('Helvetica').text(mov.fecha, 85, 82)
       const valorFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(mov.valor))
@@ -2241,7 +2242,6 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
 
       doc.moveTo(40, 125).lineTo(40 + W, 125).lineWidth(0.5).stroke()
 
-      // Imagen
       const imgBuf = await descargarImagen(mov.documento_url)
       if (imgBuf) {
         const imgY = 133
@@ -2259,6 +2259,13 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
     }
 
     doc.end()
+    await pdfReady
+
+    const buf = Buffer.concat(chunks)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="imagenes_banco_${nombreMes}_${anio}.pdf"`)
+    res.setHeader('Content-Length', buf.length)
+    res.send(buf)
   } catch (err) {
     console.error('Error PDF imágenes banco:', err)
     if (!res.headersSent) res.status(500).json({ error: err.message })
@@ -2290,11 +2297,10 @@ async function generarPDFImagenesCuenta(req, res, cuenta, tituloLabel, nombreArc
 
     if (movimientos.length === 0) return res.status(200).json({ sinImagenes: true, mensaje: 'Sin imágenes en este período' })
 
-    res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}_${nombreMes}_${anio}.pdf"`)
-
     const doc = new PDFDocument({ size: 'LETTER', margin: 40, autoFirstPage: false })
-    doc.pipe(res)
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    const pdfReady = new Promise((resolve, reject) => { doc.on('end', resolve); doc.on('error', reject) })
 
     for (const mov of movimientos) {
       doc.addPage()
@@ -2331,6 +2337,13 @@ async function generarPDFImagenesCuenta(req, res, cuenta, tituloLabel, nombreArc
       }
     }
     doc.end()
+    await pdfReady
+
+    const buf = Buffer.concat(chunks)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}_${nombreMes}_${anio}.pdf"`)
+    res.setHeader('Content-Length', buf.length)
+    res.send(buf)
   } catch (err) {
     console.error(`Error PDF imágenes ${cuenta}:`, err)
     if (!res.headersSent) res.status(500).json({ error: err.message })
