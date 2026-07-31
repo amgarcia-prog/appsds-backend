@@ -2246,7 +2246,12 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
       if (imgBuf) {
         const imgY = 133
         const maxH = doc.page.height - imgY - 40
-        doc.image(imgBuf, 40, imgY, { width: W, height: maxH, fit: [W, maxH], align: 'center', valign: 'top' })
+        try {
+          doc.image(imgBuf, 40, imgY, { width: W, height: maxH, fit: [W, maxH], align: 'center', valign: 'top' })
+        } catch (e) {
+          doc.fontSize(9).font('Helvetica').fillColor('gray').text('(Imagen no disponible)', 40, 133)
+          doc.fillColor('black')
+        }
       } else {
         doc.fontSize(9).font('Helvetica').fillColor('gray').text('(Imagen no disponible)', 40, 133)
         doc.fillColor('black')
@@ -2314,7 +2319,12 @@ async function generarPDFImagenesCuenta(req, res, cuenta, tituloLabel, nombreArc
       if (imgBuf) {
         const imgY = sepY + 8
         const maxH = doc.page.height - imgY - 40
-        doc.image(imgBuf, 40, imgY, { width: W, height: maxH, fit: [W, maxH], align: 'center', valign: 'top' })
+        try {
+          doc.image(imgBuf, 40, imgY, { width: W, height: maxH, fit: [W, maxH], align: 'center', valign: 'top' })
+        } catch (e) {
+          doc.fontSize(9).font('Helvetica').fillColor('gray').text('(Imagen no disponible)', 40, sepY + 8)
+          doc.fillColor('black')
+        }
       } else {
         doc.fontSize(9).font('Helvetica').fillColor('gray').text('(Imagen no disponible)', 40, 133)
         doc.fillColor('black')
