@@ -2356,6 +2356,9 @@ app.get('/api/financiero/reporte/imagenes-caja-menor', verificarFinanciero, (req
 app.get('/api/financiero/reporte/imagenes-consumo-caja-menor', verificarFinanciero, (req, res) =>
   generarPDFImagenesCuenta(req, res, 'consumo_caja_menor', 'CONSUMO CAJA MENOR', 'imagenes_consumo_caja_menor'))
 
+app.get('/api/financiero/reporte/imagenes-especie', verificarFinanciero, (req, res) =>
+  generarPDFImagenesCuenta(req, res, 'especie', 'DONACIONES EN ESPECIE', 'imagenes_especie'))
+
 // ── Cumpleaños por periodo ────────────────────────────────────────────────────
 app.get('/api/miembro/cumpleanos', async (req, res) => {
   const { desde, hasta, ciudad } = req.query
