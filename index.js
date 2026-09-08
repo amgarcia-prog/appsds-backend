@@ -1142,7 +1142,8 @@ app.get('/api/financiero/ingresos', verificarFinanciero, async (req, res) => {
     .eq('ciudad', req.ciudadFinanciero).order('fecha', { ascending: false })
   if (mes && anio) {
     const desde = `${anio}-${mes.padStart(2,'0')}-01`
-    const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+    const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate()
+    const hasta = `${anio}-${mes.padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
     query = query.gte('fecha', desde).lte('fecha', hasta)
   }
   const { data } = await query
@@ -1200,7 +1201,8 @@ app.get('/api/financiero/egresos', verificarFinanciero, async (req, res) => {
     .eq('ciudad', req.ciudadFinanciero).order('fecha', { ascending: false })
   if (mes && anio) {
     const desde = `${anio}-${mes.padStart(2,'0')}-01`
-    const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+    const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate()
+    const hasta = `${anio}-${mes.padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
     query = query.gte('fecha', desde).lte('fecha', hasta)
   }
   const { data } = await query
@@ -1431,7 +1433,8 @@ app.get('/api/financiero/reporte/aportes-consagrados', verificarFinanciero, asyn
   if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
 
   const desde = `${anio}-${mes.padStart(2,'0')}-01`
-  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+  const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate()
+  const hasta = `${anio}-${mes.padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const nombreMes = MESES[parseInt(mes) - 1]
 
@@ -1524,7 +1527,8 @@ app.get('/api/financiero/reporte/donaciones', verificarFinanciero, async (req, r
   if (!mes || !anio) return res.status(400).json({ error: 'Mes y año requeridos' })
 
   const desde = `${anio}-${mes.padStart(2,'0')}-01`
-  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+  const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate()
+  const hasta = `${anio}-${mes.padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const nombreMes = MESES[parseInt(mes) - 1]
 
@@ -1620,7 +1624,8 @@ const generarReporteMovimiento = async (req, res, cuenta, tituloLabel, nombreArc
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const nombreMes = MESES[parseInt(mes) - 1]
   const desde = `${anio}-${mes.padStart(2,'0')}-01`
-  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+  const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate()
+  const hasta = `${anio}-${mes.padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
 
   const [{ data: saldoData }, { data: ingHist }, { data: egrHist }, { data: ingresos }, { data: egresos }] = await Promise.all([
     supabase.from('saldos_iniciales').select('saldo').eq('ciudad', req.ciudadFinanciero).eq('cuenta', cuenta).single(),
@@ -1703,7 +1708,8 @@ app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const nombreMes = MESES[parseInt(mes) - 1]
   const desde = `${anio}-${mes.padStart(2,'0')}-01`
-  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+  const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate()
+  const hasta = `${anio}-${mes.padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
 
   const [{ data: saldoData }, { data: ingHist }, { data: egrHist }, { data: ingresos }, { data: egresos }] = await Promise.all([
     supabase.from('saldos_iniciales').select('saldo').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'banco').single(),
@@ -1800,7 +1806,8 @@ app.get('/api/financiero/reporte/consumo-caja-menor', verificarFinanciero, async
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const nombreMes = MESES[parseInt(mes) - 1]
   const desde = `${anio}-${mes.padStart(2,'0')}-01`
-  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+  const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate()
+  const hasta = `${anio}-${mes.padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
 
   const [{ data: saldoData }, { data: ingHist }, { data: egrHist }, { data: ingresos }, { data: egresos }] = await Promise.all([
     supabase.from('saldos_iniciales').select('saldo').eq('ciudad', req.ciudadFinanciero).eq('cuenta', 'consumo_caja_menor').single(),
@@ -2124,7 +2131,8 @@ app.get('/api/financiero/reporte/recibos-mes', verificarFinanciero, async (req, 
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const nombreMes = MESES[parseInt(mes)-1]
   const desde = `${anio}-${mes.padStart(2,'0')}-01`
-  const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+  const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate()
+  const hasta = `${anio}-${mes.padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
 
   const [{ data: ingresos }, { data: cfg }, { data: user }, logo] = await Promise.all([
     supabase.from('ingresos').select('*, providente:providente_id(nombre, numero_identificacion, telefono, direccion, correo)')
@@ -2195,7 +2203,8 @@ app.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, async (re
     const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
     const nombreMes = MESES[parseInt(mes) - 1]
     const desde = `${anio}-${mes.padStart(2,'0')}-01`
-    const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+    const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate()
+    const hasta = `${anio}-${mes.padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
 
     const [{ data: ingresos }, { data: egresos }] = await Promise.all([
       supabase.from('ingresos').select('id, fecha, concepto, valor, numero_recibo, comprobante_url, providente_otro, tipo, providente:providente_id(nombre)')
@@ -2279,7 +2288,8 @@ async function generarPDFImagenesCuenta(req, res, cuenta, tituloLabel, nombreArc
     const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
     const nombreMes = MESES[parseInt(mes) - 1]
     const desde = `${anio}-${mes.padStart(2,'0')}-01`
-    const hasta = `${anio}-${mes.padStart(2,'0')}-31`
+    const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate()
+    const hasta = `${anio}-${mes.padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
 
     const [{ data: ingresos }, { data: egresos }] = await Promise.all([
       supabase.from('ingresos').select('id, fecha, concepto, valor, numero_recibo, comprobante_url, providente_otro, tipo, providente:providente_id(nombre)')
