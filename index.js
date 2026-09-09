@@ -1284,7 +1284,7 @@ app.get('/api/financiero/consulta/movimiento-banco', verificarFinanciero, async 
     return {
       id: r.id,
       fecha: r.fecha,
-      comprobante: r.numero_recibo || r.id?.substring(0, 8) || '',
+      comprobante: r.numero_recibo || '',
       benefactor: esIngreso ? (r.providente?.nombre || r.providente_otro || '') : '',
       servicio: r.punto?.nombre || r.punto_servicio_otro || '',
       concepto: r.concepto || '',
@@ -1764,7 +1764,7 @@ app.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, async (
     saldo += esIngreso ? Number(r.valor) : -Number(r.valor)
     const benefactor = esIngreso ? (r.providente?.nombre || r.providente_otro || '') : ''
     const servicio = r.punto?.nombre || r.punto_servicio_otro || ''
-    const comprobante = r.numero_recibo || r.id?.substring(0, 8) || ''
+    const comprobante = r.numero_recibo || ''
     const row = ws.addRow([
       r.fecha, comprobante, benefactor, servicio, r.concepto || '',
       esIngreso ? Number(r.valor) : null,
