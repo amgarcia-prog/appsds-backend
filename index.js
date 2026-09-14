@@ -1193,6 +1193,28 @@ app.patch('/api/financiero/egresos/:id/revisado', verificarFinanciero, async (re
   res.json({ ok: true })
 })
 
+// ── Reportes de donación (público, desde la página web) ──
+app.post('/api/financiero/reportes-donacion', async (req, res) => {
+  const { ciudad, nombre_donante, telefono, valor, comentario } = req.body
+  if (!ciudad || !nombre_donante || !valor) return res.status(400).json({ ok: false, mensaje: 'Faltan campos requeridos' })
+  const { error } = await supabase.from('reportes_donacion')
+    .insert({ ciudad, nombre_donante, telefono: telefono || null, valor, comentario: comentario || null })
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.get('/api/financiero/reportes-donacion', verificarFinanciero, async (req, res) => {
+  const { data } = await supabase.from('reportes_donacion')
+    .select('*').eq('ciudad', req.ciudadFinanciero).eq('atendido', false).order('created_at', { ascending: false })
+  res.json(data || [])
+})
+
+app.patch('/api/financiero/reportes-donacion/:id/atendido', verificarFinanciero, async (req, res) => {
+  const { error } = await supabase.from('reportes_donacion').update({ atendido: true }).eq('id', req.params.id).eq('ciudad', req.ciudadFinanciero)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 // ── Egresos ──
 app.get('/api/financiero/egresos', verificarFinanciero, async (req, res) => {
   const { mes, anio } = req.query
