@@ -1195,12 +1195,12 @@ app.patch('/api/financiero/egresos/:id/revisado', verificarFinanciero, async (re
 
 // ── Reportes de donación (público, desde la página web) ──
 app.post('/api/financiero/reportes-donacion', async (req, res) => {
-  const { ciudad, nombre_donante, cedula, correo, telefono, direccion, valor, comentario } = req.body
-  if (!ciudad || !nombre_donante || !cedula || !correo || !telefono || !valor) {
+  const { ciudad, nombre_donante, cedula, correo, telefono, direccion, valor, comprobante_url, comentario } = req.body
+  if (!ciudad || !nombre_donante || !cedula || !correo || !telefono || !valor || !comprobante_url) {
     return res.status(400).json({ ok: false, mensaje: 'Faltan campos requeridos' })
   }
   const { error } = await supabase.from('reportes_donacion')
-    .insert({ ciudad, nombre_donante, cedula, correo, telefono, direccion: direccion || null, valor, comentario: comentario || null })
+    .insert({ ciudad, nombre_donante, cedula, correo, telefono, direccion: direccion || null, valor, comprobante_url, comentario: comentario || null })
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
 })
