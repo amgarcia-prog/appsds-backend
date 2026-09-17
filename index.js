@@ -624,6 +624,36 @@ app.delete('/api/admin/puntos-servicio/:id', verificarAdmin, async (req, res) =>
   res.json({ ok: true })
 })
 
+// ── Publicaciones (noticias del Home) ───────────────────────────────────────
+
+app.get('/api/publicaciones', async (req, res) => {
+  const { data, error } = await supabase.from('publicaciones').select('*').order('created_at', { ascending: false }).limit(12)
+  if (error) return res.status(500).json([])
+  res.json(data)
+})
+
+app.post('/api/admin/publicaciones', verificarAdmin, async (req, res) => {
+  const { titulo, extracto, imagen_url, enlace } = req.body
+  if (!titulo || !extracto) return res.status(400).json({ ok: false, mensaje: 'Título y extracto son obligatorios' })
+  const { error } = await supabase.from('publicaciones').insert({ titulo, extracto, imagen_url: imagen_url || null, enlace: enlace || null })
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.put('/api/admin/publicaciones/:id', verificarAdmin, async (req, res) => {
+  const { titulo, extracto, imagen_url, enlace } = req.body
+  if (!titulo || !extracto) return res.status(400).json({ ok: false, mensaje: 'Título y extracto son obligatorios' })
+  const { error } = await supabase.from('publicaciones').update({ titulo, extracto, imagen_url: imagen_url || null, enlace: enlace || null }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.delete('/api/admin/publicaciones/:id', verificarAdmin, async (req, res) => {
+  const { error } = await supabase.from('publicaciones').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 // ── Responsabilidades Consejo ───────────────────────────────────────────────
 
 // Consejeros de una ciudad
