@@ -214,6 +214,7 @@ app.post('/api/login', async (req, res) => {
   if (resps.includes('Obras y servicios') && !roles.includes('responsable_obras')) roles.push('responsable_obras')
   if (resps.includes('Coordinador principal del consejo') && !roles.includes('coordinador_consejo')) roles.push('coordinador_consejo')
   if (resps.includes('Financiero') && !roles.includes('responsable_financiero')) roles.push('responsable_financiero')
+  if (data.estado_consagracion === 'pilar' && (data.responsabilidades_pilar || []).includes('Comunicaciones') && !roles.includes('responsable_comunicaciones')) roles.push('responsable_comunicaciones')
 
   res.json({
     ok: true,
@@ -626,13 +627,25 @@ app.delete('/api/admin/puntos-servicio/:id', verificarAdmin, async (req, res) =>
 
 // ── Publicaciones (noticias del Home) ───────────────────────────────────────
 
+const verificarPublicaciones = async (req, res, next) => {
+  if (req.headers['x-admin-key'] === 'SDS2026admin') return next()
+  const id = req.headers['x-miembro-id']
+  if (!id) return res.status(401).json({ ok: false, mensaje: 'No autorizado' })
+  const { data } = await supabase.from('registros').select('roles, estado_consagracion, responsabilidades_pilar').eq('id', id).single()
+  if (!data) return res.status(401).json({ ok: false, mensaje: 'No autorizado' })
+  const tieneRol = (data.roles || []).includes('responsable_comunicaciones') ||
+                   (data.estado_consagracion === 'pilar' && (data.responsabilidades_pilar || []).includes('Comunicaciones'))
+  if (!tieneRol) return res.status(403).json({ ok: false, mensaje: 'Solo responsables de comunicaciones' })
+  next()
+}
+
 app.get('/api/publicaciones', async (req, res) => {
   const { data, error } = await supabase.from('publicaciones').select('*').order('created_at', { ascending: false }).limit(12)
   if (error) return res.status(500).json([])
   res.json(data)
 })
 
-app.post('/api/admin/publicaciones', verificarAdmin, async (req, res) => {
+app.post('/api/admin/publicaciones', verificarPublicaciones, async (req, res) => {
   const { titulo, extracto, imagen_url, enlace } = req.body
   if (!titulo || !extracto) return res.status(400).json({ ok: false, mensaje: 'Título y extracto son obligatorios' })
   const { error } = await supabase.from('publicaciones').insert({ titulo, extracto, imagen_url: imagen_url || null, enlace: enlace || null })
@@ -640,7 +653,7 @@ app.post('/api/admin/publicaciones', verificarAdmin, async (req, res) => {
   res.json({ ok: true })
 })
 
-app.put('/api/admin/publicaciones/:id', verificarAdmin, async (req, res) => {
+app.put('/api/admin/publicaciones/:id', verificarPublicaciones, async (req, res) => {
   const { titulo, extracto, imagen_url, enlace } = req.body
   if (!titulo || !extracto) return res.status(400).json({ ok: false, mensaje: 'Título y extracto son obligatorios' })
   const { error } = await supabase.from('publicaciones').update({ titulo, extracto, imagen_url: imagen_url || null, enlace: enlace || null }).eq('id', req.params.id)
@@ -648,7 +661,7 @@ app.put('/api/admin/publicaciones/:id', verificarAdmin, async (req, res) => {
   res.json({ ok: true })
 })
 
-app.delete('/api/admin/publicaciones/:id', verificarAdmin, async (req, res) => {
+app.delete('/api/admin/publicaciones/:id', verificarPublicaciones, async (req, res) => {
   const { error } = await supabase.from('publicaciones').delete().eq('id', req.params.id)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
