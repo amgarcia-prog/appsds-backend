@@ -986,12 +986,12 @@ app.get('/api/health', (req, res) => {
 // Subir archivo a Supabase Storage
 app.post('/api/upload', upload.single('archivo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ ok: false, mensaje: 'No se recibió archivo' })
-  const { bucket, carpeta } = req.body
+  const { bucket, carpeta, nombre: nombrePersonalizado } = req.body
   const ext = req.file.originalname.split('.').pop()
-  const nombre = `${carpeta}/${Date.now()}.${ext}`
+  const nombre = nombrePersonalizado ? `${carpeta}/${nombrePersonalizado}` : `${carpeta}/${Date.now()}.${ext}`
   const { error } = await supabase.storage.from(bucket).upload(nombre, req.file.buffer, {
     contentType: req.file.mimetype,
-    upsert: false,
+    upsert: !!nombrePersonalizado,
   })
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   const { data } = supabase.storage.from(bucket).getPublicUrl(nombre)
