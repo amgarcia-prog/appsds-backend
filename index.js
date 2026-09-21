@@ -998,6 +998,14 @@ app.post('/api/upload', upload.single('archivo'), async (req, res) => {
   res.json({ ok: true, url: data.publicUrl })
 })
 
+app.delete('/api/admin/storage', verificarAdmin, async (req, res) => {
+  const { bucket, path } = req.body
+  if (!bucket || !path) return res.status(400).json({ ok: false, mensaje: 'Faltan bucket y path' })
+  const { error } = await supabase.storage.from(bucket).remove([path])
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
 // ── CIO ──────────────────────────────────────────────────────────────────────
 const CIO_KEY = 'CIO2026'
 const verificarCIO = (req, res, next) => {
