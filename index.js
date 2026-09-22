@@ -1013,7 +1013,7 @@ app.post('/api/contacto', async (req, res) => {
     return res.status(400).json({ ok: false, mensaje: 'Nombre, correo y mensaje son obligatorios' })
   }
   try {
-    await resend.emails.send({
+    const resultado = await resend.emails.send({
       from: 'Servidores del Servidor <amgarcia@servidoresdelservidor.org>',
       to: ['administracion@servidoresdelservidor.org'],
       reply_to: email,
@@ -1033,8 +1033,11 @@ app.post('/api/contacto', async (req, res) => {
         </div>
       `,
     })
-    res.json({ ok: true })
+    console.log('resend /api/contacto:', JSON.stringify(resultado))
+    if (resultado.error) return res.status(500).json({ ok: false, mensaje: resultado.error.message })
+    res.json({ ok: true, id: resultado.data?.id })
   } catch (e) {
+    console.log('resend /api/contacto error:', e.message)
     res.status(500).json({ ok: false, mensaje: 'No se pudo enviar el mensaje' })
   }
 })
