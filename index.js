@@ -1034,11 +1034,11 @@ app.post('/api/contacto', async (req, res) => {
       `,
     })
     console.log('resend /api/contacto:', JSON.stringify(resultado))
-    if (resultado.error) return res.status(500).json({ ok: false, mensaje: resultado.error.message })
-    res.json({ ok: true, id: resultado.data?.id })
+    if (resultado.error) return res.status(500).json({ ok: false, mensaje: resultado.error.message, debug: resultado })
+    res.json({ ok: true, debug: resultado })
   } catch (e) {
     console.log('resend /api/contacto error:', e.message)
-    res.status(500).json({ ok: false, mensaje: 'No se pudo enviar el mensaje' })
+    res.status(500).json({ ok: false, mensaje: 'No se pudo enviar el mensaje', debug: e.message })
   }
 })
 
