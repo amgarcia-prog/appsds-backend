@@ -1006,6 +1006,39 @@ app.delete('/api/admin/storage', verificarAdmin, async (req, res) => {
   res.json({ ok: true })
 })
 
+// ── Formulario de contacto (web pública) ─────────────────────────────────────
+app.post('/api/contacto', async (req, res) => {
+  const { nombre, email, asunto, mensaje } = req.body
+  if (!nombre || !email || !mensaje) {
+    return res.status(400).json({ ok: false, mensaje: 'Nombre, correo y mensaje son obligatorios' })
+  }
+  try {
+    await resend.emails.send({
+      from: 'Servidores del Servidor <amgarcia@servidoresdelservidor.org>',
+      to: [process.env.CORREO_INSTITUCIONAL],
+      reply_to: email,
+      subject: asunto ? `Contacto web: ${asunto}` : 'Nuevo mensaje desde la página web',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: #1e40af; padding: 24px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 20px;">Nuevo mensaje de contacto</h1>
+          </div>
+          <div style="padding: 24px; color: #1f2937;">
+            <p><strong>Nombre:</strong> ${nombre}</p>
+            <p><strong>Correo:</strong> ${email}</p>
+            ${asunto ? `<p><strong>Asunto:</strong> ${asunto}</p>` : ''}
+            <p><strong>Mensaje:</strong></p>
+            <p style="white-space: pre-wrap;">${mensaje}</p>
+          </div>
+        </div>
+      `,
+    })
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ ok: false, mensaje: 'No se pudo enviar el mensaje' })
+  }
+})
+
 // ── CIO ──────────────────────────────────────────────────────────────────────
 const CIO_KEY = 'CIO2026'
 const verificarCIO = (req, res, next) => {
