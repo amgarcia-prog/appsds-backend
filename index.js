@@ -1015,7 +1015,7 @@ app.post('/api/contacto', async (req, res) => {
   try {
     await resend.emails.send({
       from: 'Servidores del Servidor <amgarcia@servidoresdelservidor.org>',
-      to: [process.env.CORREO_INSTITUCIONAL],
+      to: ['administracion@servidoresdelservidor.org'],
       reply_to: email,
       subject: asunto ? `Contacto web: ${asunto}` : 'Nuevo mensaje desde la página web',
       html: `
