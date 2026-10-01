@@ -214,6 +214,7 @@ app.post('/api/login', async (req, res) => {
   if (resps.includes('Obras y servicios') && !roles.includes('responsable_obras')) roles.push('responsable_obras')
   if (resps.includes('Coordinador principal del consejo') && !roles.includes('coordinador_consejo')) roles.push('coordinador_consejo')
   if (resps.includes('Financiero') && !roles.includes('responsable_financiero')) roles.push('responsable_financiero')
+  if (resps.includes('Comunicaciones') && !roles.includes('responsable_comunicaciones_ciudad')) roles.push('responsable_comunicaciones_ciudad')
   if (data.estado_consagracion === 'pilar' && (data.responsabilidades_pilar || []).includes('Comunicaciones') && !roles.includes('responsable_comunicaciones')) roles.push('responsable_comunicaciones')
 
   res.json({
@@ -730,6 +731,86 @@ app.put('/api/comunicaciones/quitar-rol/:id', verificarComunicaciones, async (re
   const { error } = await supabase.from('registros').update({ roles }).eq('id', req.params.id)
   if (error) return res.status(500).json({ ok: false, mensaje: error.message })
   res.json({ ok: true })
+})
+
+// ── Mi Ciudad (comunicaciones del consejo, por ciudad) ────────────────────────
+const verificarComunicacionesConsejo = async (req, res, next) => {
+  const id = req.headers['x-miembro-id']
+  if (!id) return res.status(401).json({ ok: false, mensaje: 'No autorizado' })
+  const { data } = await supabase.from('registros').select('roles, responsabilidades_consejo, ciudad_donde_sirve').eq('id', id).single()
+  if (!data) return res.status(401).json({ ok: false, mensaje: 'No autorizado' })
+  const tieneRol = (data.roles || []).includes('responsable_comunicaciones_ciudad') ||
+                   (data.responsabilidades_consejo || []).includes('Comunicaciones')
+  if (!tieneRol) return res.status(403).json({ ok: false, mensaje: 'Solo responsables de comunicaciones del consejo' })
+  req.ciudadComunicaciones = data.ciudad_donde_sirve
+  next()
+}
+
+app.get('/api/mi-ciudad/contenido', verificarComunicacionesConsejo, async (req, res) => {
+  const { data } = await supabase.from('ciudad_contenido').select('*').ilike('ciudad', req.ciudadComunicaciones).single()
+  res.json(data || { ciudad: req.ciudadComunicaciones, subtitulo: '', historia: '', historia_fotos: [] })
+})
+
+app.put('/api/mi-ciudad/contenido', verificarComunicacionesConsejo, async (req, res) => {
+  const { subtitulo, historia, historia_fotos } = req.body
+  const { error } = await supabase.from('ciudad_contenido').upsert({
+    ciudad: req.ciudadComunicaciones,
+    subtitulo: subtitulo || null,
+    historia: historia || null,
+    historia_fotos: Array.isArray(historia_fotos) ? historia_fotos : [],
+    actualizado_por: req.headers['x-miembro-id'],
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'ciudad' })
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.get('/api/mi-ciudad/servicios', verificarComunicacionesConsejo, async (req, res) => {
+  const { data } = await supabase.from('ciudad_servicios').select('*').ilike('ciudad', req.ciudadComunicaciones).order('orden').order('created_at')
+  res.json(data || [])
+})
+
+app.post('/api/mi-ciudad/servicios', verificarComunicacionesConsejo, async (req, res) => {
+  const { punto_servicio_id, nombre, horario, descripcion, direccion, telefono, fotos } = req.body
+  if (!nombre) return res.status(400).json({ ok: false, mensaje: 'El nombre es obligatorio' })
+  const { error } = await supabase.from('ciudad_servicios').insert({
+    ciudad: req.ciudadComunicaciones,
+    punto_servicio_id: punto_servicio_id || null,
+    nombre, horario: horario || null, descripcion: descripcion || null,
+    direccion: direccion || null, telefono: telefono || null,
+    fotos: Array.isArray(fotos) ? fotos : [],
+  })
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.put('/api/mi-ciudad/servicios/:id', verificarComunicacionesConsejo, async (req, res) => {
+  const { punto_servicio_id, nombre, horario, descripcion, direccion, telefono, fotos } = req.body
+  if (!nombre) return res.status(400).json({ ok: false, mensaje: 'El nombre es obligatorio' })
+  const { error } = await supabase.from('ciudad_servicios').update({
+    punto_servicio_id: punto_servicio_id || null,
+    nombre, horario: horario || null, descripcion: descripcion || null,
+    direccion: direccion || null, telefono: telefono || null,
+    fotos: Array.isArray(fotos) ? fotos : [],
+  }).eq('id', req.params.id).ilike('ciudad', req.ciudadComunicaciones)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+app.delete('/api/mi-ciudad/servicios/:id', verificarComunicacionesConsejo, async (req, res) => {
+  const { error } = await supabase.from('ciudad_servicios').delete().eq('id', req.params.id).ilike('ciudad', req.ciudadComunicaciones)
+  if (error) return res.status(500).json({ ok: false, mensaje: error.message })
+  res.json({ ok: true })
+})
+
+// Lectura pública para la página web (sin autenticación)
+app.get('/api/ciudad-publica/:nombre', async (req, res) => {
+  const nombre = req.params.nombre
+  const [{ data: contenido }, { data: servicios }] = await Promise.all([
+    supabase.from('ciudad_contenido').select('subtitulo, historia, historia_fotos').ilike('ciudad', nombre).single(),
+    supabase.from('ciudad_servicios').select('*').ilike('ciudad', nombre).order('orden').order('created_at'),
+  ])
+  res.json({ contenido: contenido || null, servicios: servicios || [] })
 })
 
 // ── Responsabilidades Consejo ───────────────────────────────────────────────
