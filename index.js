@@ -8,6 +8,7 @@ const PDFDocument = require('pdfkit')
 const archiver = require('archiver')
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 
 const multer = require('multer')
 const app = express()
@@ -230,6 +231,79 @@ app.post('/api/login', async (req, res) => {
       roles,
     }
   })
+})
+
+// ── Recuperación de clave ────────────────────────────────────────────────────
+const FRONTEND_URL = 'https://appsds.vercel.app'
+
+app.post('/api/olvide-clave', async (req, res) => {
+  const { numeroIdentificacion } = req.body
+  if (!numeroIdentificacion) return res.status(400).json({ ok: false, mensaje: 'Ingresa tu número de identificación.' })
+
+  const { data } = await supabase.from('registros')
+    .select('id, primer_nombre, primer_apellido, correo_electronico')
+    .eq('numero_identificacion', numeroIdentificacion).single()
+
+  if (!data) return res.status(404).json({ ok: false, mensaje: 'Número de identificación no encontrado.' })
+  if (!data.correo_electronico) return res.status(400).json({ ok: false, mensaje: 'Tu registro no tiene correo electrónico guardado. Contacta al administrador de tu ciudad.' })
+
+  const token = crypto.randomBytes(32).toString('hex')
+  const expira = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+  const { error } = await supabase.from('registros').update({ reset_token: token, reset_token_expira: expira }).eq('id', data.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: 'No se pudo generar el enlace. Intenta de nuevo.' })
+
+  const enlace = `${FRONTEND_URL}/restablecer-clave?token=${token}`
+  try {
+    await resend.emails.send({
+      from: 'Servidores del Servidor <amgarcia@servidoresdelservidor.org>',
+      to: [data.correo_electronico],
+      subject: 'Recupera tu clave de acceso',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: #1e40af; padding: 24px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 20px;">Servidores del Servidor</h1>
+            <p style="color: #bfdbfe; margin: 4px 0 0; font-size: 14px;">Donum Christi Comunidad Apostólica</p>
+          </div>
+          <div style="padding: 32px 24px;">
+            <p style="font-size: 16px; color: #1f2937;">Servido sea Jesucristo,</p>
+            <p style="font-size: 16px; color: #1f2937;">Estimado(a) <strong>${data.primer_nombre} ${data.primer_apellido}</strong>,</p>
+            <p style="color: #4b5563;">Recibimos una solicitud para restablecer tu clave de acceso al portal. Haz clic en el siguiente botón para crear una clave nueva. Este enlace vence en 1 hora.</p>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="${enlace}" style="background-color: #1e40af; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">Crear nueva clave</a>
+            </div>
+            <p style="color: #9ca3af; font-size: 13px;">Si tú no solicitaste esto, puedes ignorar este correo — tu clave actual seguirá funcionando.</p>
+            <p style="color: #1f2937; font-weight: bold;">Equipo Servidores del Servidor</p>
+          </div>
+          <div style="background-color: #f9fafb; padding: 16px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="color: #9ca3af; font-size: 12px; margin: 0;">www.servidoresdelservidor.org</p>
+          </div>
+        </div>
+      `,
+    })
+  } catch (err) {
+    console.error('❌ Error enviando correo de recuperación:', err)
+    return res.status(500).json({ ok: false, mensaje: 'No se pudo enviar el correo. Intenta de nuevo.' })
+  }
+
+  res.json({ ok: true, mensaje: `Te enviamos un enlace a ${data.correo_electronico} para crear una nueva clave.` })
+})
+
+app.post('/api/restablecer-clave', async (req, res) => {
+  const { token, claveNueva } = req.body
+  if (!token || !claveNueva) return res.status(400).json({ ok: false, mensaje: 'Faltan datos.' })
+  if (claveNueva.length < 6) return res.status(400).json({ ok: false, mensaje: 'La clave debe tener mínimo 6 caracteres.' })
+
+  const { data } = await supabase.from('registros')
+    .select('id, reset_token_expira').eq('reset_token', token).single()
+
+  if (!data) return res.status(400).json({ ok: false, mensaje: 'Este enlace no es válido. Solicita uno nuevo.' })
+  if (new Date(data.reset_token_expira) < new Date()) return res.status(400).json({ ok: false, mensaje: 'Este enlace venció. Solicita uno nuevo.' })
+
+  const { error } = await supabase.from('registros')
+    .update({ clave: claveNueva, reset_token: null, reset_token_expira: null }).eq('id', data.id)
+  if (error) return res.status(500).json({ ok: false, mensaje: 'No se pudo actualizar la clave.' })
+
+  res.json({ ok: true, mensaje: 'Tu clave se actualizó correctamente.' })
 })
 
 // Obtener datos propios del miembro
