@@ -45,6 +45,14 @@ function listarPorCiudad(columnas, ciudad) {
   return tabla().select(columnas).ilike('ciudad_donde_sirve', ciudad)
 }
 
+// Registros en uno (texto) o varios (arreglo) estados del proceso, opcionalmente de una ciudad
+function listarPorEstado({ columnas, estados, ciudad, orden: [campo, ascendente] }) {
+  let consulta = tabla().select(columnas)
+  consulta = Array.isArray(estados) ? consulta.in('estado_proceso', estados) : consulta.eq('estado_proceso', estados)
+  if (ciudad !== undefined) consulta = consulta.ilike('ciudad_donde_sirve', ciudad)
+  return consulta.order(campo, { ascending: ascendente })
+}
+
 // Miembros vivos de la ciudad con fecha de nacimiento
 function listarConFechaNacimiento(columnas, ciudad) {
   return tabla().select(columnas)
@@ -77,6 +85,7 @@ module.exports = {
   listarTodos,
   listarConsejo,
   listarPorCiudad,
+  listarPorEstado,
   listarConFechaNacimiento,
   listarPilares,
   buscarPorTexto,
