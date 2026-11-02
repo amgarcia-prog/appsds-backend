@@ -14,8 +14,23 @@ function actualizar(id, cambios) {
   return tabla().update(cambios).eq('id', id)
 }
 
+function eliminar(id) {
+  return tabla().delete().eq('id', id)
+}
+
 function listar(columnas) {
   return tabla().select(columnas)
+}
+
+// Todos los registros con todas sus columnas, los más recientes primero
+function listarTodos() {
+  return tabla().select('*').order('created_at', { ascending: false })
+}
+
+// Miembros del consejo de una ciudad
+function listarConsejo(columnas, ciudad, { ordenar = true } = {}) {
+  const consulta = tabla().select(columnas).eq('pertenece_consejo', 'Si pertenezco').ilike('ciudad_donde_sirve', ciudad)
+  return ordenar ? consulta.order('primer_apellido') : consulta
 }
 
 function listarPorCiudad(columnas, ciudad) {
@@ -39,7 +54,10 @@ module.exports = {
   obtenerPorId,
   obtenerPorIdentificacion,
   actualizar,
+  eliminar,
   listar,
+  listarTodos,
+  listarConsejo,
   listarPorCiudad,
   listarPilares,
   buscarPorTexto,

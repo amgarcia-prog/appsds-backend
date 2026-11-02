@@ -3,6 +3,13 @@
 const { ADMIN_KEY, CIO_KEY } = require('../config/env')
 const roles = require('../services/rolesService')
 
+// Solo exige que venga x-miembro-id, sin comprobar el miembro ni sus roles.
+// Cada ruta original respondía el 401 con un cuerpo distinto, que se conserva.
+const exigirMiembroId = (cuerpo401) => (req, res, next) => {
+  if (!req.headers['x-miembro-id']) return res.status(401).json(cuerpo401)
+  next()
+}
+
 const verificarAdmin = (req, res, next) => {
   if (req.headers['x-admin-key'] !== ADMIN_KEY) {
     return res.status(401).json({ ok: false, mensaje: 'No autorizado' })
@@ -58,6 +65,7 @@ const verificarFinanciero = async (req, res, next) => {
 }
 
 module.exports = {
+  exigirMiembroId,
   verificarAdmin,
   verificarCIO,
   verificarComunicaciones,
