@@ -1,6 +1,7 @@
 const express = require('express')
 const { verificarFinanciero } = require('../middlewares/auth')
 const financiero = require('../controllers/financieroController')
+const recibos = require('../controllers/recibosController')
 
 const router = express.Router()
 
@@ -32,6 +33,11 @@ router.get('/api/financiero/consulta/aportes-benefactor', verificarFinanciero, f
 router.get('/api/financiero/consulta/movimiento-banco', verificarFinanciero, financiero.movimientoBanco)
 router.get('/api/financiero/consulta/busqueda-concepto', verificarFinanciero, financiero.buscarPorConcepto)
 router.get('/api/financiero/consulta/donaciones-especie', verificarFinanciero, financiero.donacionesEnEspecie)
+
+router.post('/api/financiero/enviar-recibo/:id', verificarFinanciero, recibos.enviar)
+router.get('/api/financiero/proximo-recibo', verificarFinanciero, recibos.proximoNumero)
+router.get('/api/financiero/recibo/:id', verificarFinanciero, recibos.descargar)
+router.get('/api/financiero/reporte/recibos-mes', verificarFinanciero, recibos.descargarDelMes)
 
 router.get('/api/financiero/saldo-inicial', verificarFinanciero, financiero.obtenerSaldoInicial)
 router.put('/api/financiero/saldo-inicial', verificarFinanciero, financiero.guardarSaldoInicial)
