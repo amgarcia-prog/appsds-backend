@@ -10,6 +10,14 @@ function obtenerPorIdentificacion(numero, columnas) {
   return tabla().select(columnas).eq('numero_identificacion', numero).single()
 }
 
+function obtenerPorTokenDeRecuperacion(token, columnas) {
+  return tabla().select(columnas).eq('reset_token', token).single()
+}
+
+function insertar(datos) {
+  return tabla().insert(datos)
+}
+
 function actualizar(id, cambios) {
   return tabla().update(cambios).eq('id', id)
 }
@@ -37,6 +45,14 @@ function listarPorCiudad(columnas, ciudad) {
   return tabla().select(columnas).ilike('ciudad_donde_sirve', ciudad)
 }
 
+// Miembros vivos de la ciudad con fecha de nacimiento
+function listarConFechaNacimiento(columnas, ciudad) {
+  return tabla().select(columnas)
+    .ilike('ciudad_donde_sirve', ciudad)
+    .not('fecha_nacimiento', 'is', null)
+    .neq('estado_consagracion', 'fallecido')
+}
+
 function listarPilares(columnas) {
   return tabla().select(columnas).eq('estado_consagracion', 'pilar').order('primer_apellido')
 }
@@ -53,12 +69,15 @@ function buscarPorTexto({ columnas, q, campos, ciudad, fueraDelConsejo, limite }
 module.exports = {
   obtenerPorId,
   obtenerPorIdentificacion,
+  obtenerPorTokenDeRecuperacion,
+  insertar,
   actualizar,
   eliminar,
   listar,
   listarTodos,
   listarConsejo,
   listarPorCiudad,
+  listarConFechaNacimiento,
   listarPilares,
   buscarPorTexto,
 }
