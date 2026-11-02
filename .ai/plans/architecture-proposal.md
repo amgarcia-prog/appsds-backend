@@ -1,6 +1,6 @@
 # Propuesta de arquitectura MVC del backend
 
-Estado: aprobada. Se implementa por etapas en la rama `feature/backend-mvc`.
+Estado: implementada en la rama `feature/backend-mvc`. La arquitectura vigente está documentada en `CLAUDE.md`; las diferencias con esta propuesta están al final.
 
 ## 1. Diagnóstico de la arquitectura actual
 
@@ -120,3 +120,11 @@ Cada etapa termina con el arnés en verde, el servidor arrancando y un commit pr
 5. `formacion` y `junta`.
 6. `financiero`: movimientos y consultas; recibos; reportes.
 7. Eliminar `legado.js` y actualizar `CLAUDE.md`.
+
+## Diferencias entre la propuesta y la implementación
+
+- Las vistas de reportes quedaron como `views/reportes/excel.js`, `recibo.js` (PDF y ZIP) e `imagenes.js` en lugar de `pdf.js` y `zip.js`.
+- No se creó `HttpError`: los servicios devuelven `{ resultado }` y los controladores lo traducen, lo que deja los status y mensajes en la capa de presentación.
+- Se agregaron modelos para todo acceso externo: `correoModel` (Resend), `documentosModel` (`pdfs/`), `imagenesModel` (logo y comprobantes) y `movimientosModel` (base común de ingresos y egresos).
+- Se agregaron `utils/respuestas.js` (respuestas repetidas de los controladores) y el middleware `exigirMiembroId`, que reemplaza el chequeo de `x-miembro-id` repetido en decenas de handlers.
+- El PNG de prueba del arnés no tiene canal alfa: con alfa, PDFKit procesa la imagen con zlib asíncrono y el orden de los objetos del PDF variaba entre corridas.

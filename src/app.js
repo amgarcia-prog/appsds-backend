@@ -1,40 +1,30 @@
 const express = require('express')
 const cors = require('cors')
-const authRoutes = require('./routes/authRoutes')
-const miembroRoutes = require('./routes/miembroRoutes')
-const formacionRoutes = require('./routes/formacionRoutes')
-const financieroRoutes = require('./routes/financieroRoutes')
-const generalRoutes = require('./routes/generalRoutes')
-const comunicacionesRoutes = require('./routes/comunicacionesRoutes')
-const miCiudadRoutes = require('./routes/miCiudadRoutes')
-const cioRoutes = require('./routes/cioRoutes')
-const evaluacionRoutes = require('./routes/evaluacionRoutes')
-const obrasRoutes = require('./routes/obrasRoutes')
-const consejoRoutes = require('./routes/consejoRoutes')
-const pilarRoutes = require('./routes/pilarRoutes')
-const adminRoutes = require('./routes/adminRoutes')
-const legado = require('./routes/legado')
 const errorHandler = require('./middlewares/errorHandler')
+
+// Cada router declara sus rutas completas (/api/...); ninguna ruta se solapa entre módulos
+const routers = [
+  require('./routes/authRoutes'),
+  require('./routes/miembroRoutes'),
+  require('./routes/formacionRoutes'),
+  require('./routes/consejoRoutes'),
+  require('./routes/obrasRoutes'),
+  require('./routes/pilarRoutes'),
+  require('./routes/adminRoutes'),
+  require('./routes/comunicacionesRoutes'),
+  require('./routes/miCiudadRoutes'),
+  require('./routes/financieroRoutes'),
+  require('./routes/cioRoutes'),
+  require('./routes/evaluacionRoutes'),
+  require('./routes/generalRoutes'),
+]
 
 const app = express()
 
 app.use(cors())
 app.use(express.json())
 
-app.use(authRoutes)
-app.use(miembroRoutes)
-app.use(formacionRoutes)
-app.use(financieroRoutes)
-app.use(generalRoutes)
-app.use(comunicacionesRoutes)
-app.use(miCiudadRoutes)
-app.use(cioRoutes)
-app.use(evaluacionRoutes)
-app.use(obrasRoutes)
-app.use(consejoRoutes)
-app.use(pilarRoutes)
-app.use(adminRoutes)
-app.use(legado)
+for (const router of routers) app.use(router)
 
 app.use(errorHandler)
 
