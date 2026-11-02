@@ -4,11 +4,28 @@
 const http = require('http')
 const https = require('https')
 const crypto = require('crypto')
+const zlib = require('zlib')
 const { EventEmitter } = require('events')
 const { PassThrough } = require('stream')
 
-// PNG de 1x1 que PDFKit puede incrustar (logo e imágenes de comprobantes)
-const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+// PNG RGB de 1x1 para el logo y las imágenes de comprobantes. Sin canal alfa a propósito:
+// PDFKit separa el alfa con zlib asíncrono y el orden de los objetos del PDF dejaría de ser estable.
+function pngRgb1x1() {
+  const fragmento = (tipo, datos) => {
+    const cuerpo = Buffer.concat([Buffer.from(tipo, 'ascii'), datos])
+    const largo = Buffer.alloc(4); largo.writeUInt32BE(datos.length)
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(cuerpo))
+    return Buffer.concat([largo, cuerpo, crc])
+  }
+  const ihdr = Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0]) // 1x1, 8 bits, RGB
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    fragmento('IHDR', ihdr),
+    fragmento('IDAT', zlib.deflateSync(Buffer.from([0, 30, 64, 175]))),
+    fragmento('IEND', Buffer.alloc(0)),
+  ])
+}
+const PNG = pngRgb1x1()
 
 // Modos de respuesta de los servicios externos durante una petición
 //   normal      Supabase devuelve filas de ejemplo; Resend responde bien
