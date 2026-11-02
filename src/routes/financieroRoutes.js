@@ -2,6 +2,7 @@ const express = require('express')
 const { verificarFinanciero } = require('../middlewares/auth')
 const financiero = require('../controllers/financieroController')
 const recibos = require('../controllers/recibosController')
+const reportes = require('../controllers/reportesController')
 
 const router = express.Router()
 
@@ -38,6 +39,16 @@ router.post('/api/financiero/enviar-recibo/:id', verificarFinanciero, recibos.en
 router.get('/api/financiero/proximo-recibo', verificarFinanciero, recibos.proximoNumero)
 router.get('/api/financiero/recibo/:id', verificarFinanciero, recibos.descargar)
 router.get('/api/financiero/reporte/recibos-mes', verificarFinanciero, recibos.descargarDelMes)
+
+router.get('/api/financiero/reporte/aportes-consagrados', verificarFinanciero, reportes.aportesConsagrados)
+router.get('/api/financiero/reporte/donaciones', verificarFinanciero, reportes.donaciones)
+router.get('/api/financiero/reporte/movimiento-banco', verificarFinanciero, reportes.movimientoBanco)
+router.get('/api/financiero/reporte/movimiento-caja-menor', verificarFinanciero, reportes.movimientoCajaMenor)
+router.get('/api/financiero/reporte/consumo-caja-menor', verificarFinanciero, reportes.consumoCajaMenor)
+router.get('/api/financiero/reporte/imagenes-banco', verificarFinanciero, reportes.imagenesBanco)
+router.get('/api/financiero/reporte/imagenes-caja-menor', verificarFinanciero, reportes.imagenesCajaMenor)
+router.get('/api/financiero/reporte/imagenes-consumo-caja-menor', verificarFinanciero, reportes.imagenesConsumoCajaMenor)
+router.get('/api/financiero/reporte/imagenes-especie', verificarFinanciero, reportes.imagenesEspecie)
 
 router.get('/api/financiero/saldo-inicial', verificarFinanciero, financiero.obtenerSaldoInicial)
 router.put('/api/financiero/saldo-inicial', verificarFinanciero, financiero.guardarSaldoInicial)
