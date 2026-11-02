@@ -43,8 +43,34 @@ function rolesDeMiembro(m) {
   return roles
 }
 
+// Agrega el rol si no lo tiene; si ya lo tiene no escribe nada
+async function asignarRol(id, rol) {
+  const { data: reg } = await registrosModel.obtenerPorId(id, 'roles')
+  const roles = reg?.roles || []
+  if (roles.includes(rol)) return { error: null }
+  return registrosModel.actualizar(id, { roles: [...roles, rol] })
+}
+
+async function quitarRol(id, rol) {
+  const { data: reg } = await registrosModel.obtenerPorId(id, 'roles')
+  const roles = (reg?.roles || []).filter(r => r !== rol)
+  return registrosModel.actualizar(id, { roles })
+}
+
+// Asigna o quita el rol y siempre guarda la lista resultante
+async function establecerRol(id, rol, asignar) {
+  const { data: reg } = await registrosModel.obtenerPorId(id, 'roles')
+  let roles = reg?.roles || []
+  if (asignar) { if (!roles.includes(rol)) roles = [...roles, rol] }
+  else { roles = roles.filter(r => r !== rol) }
+  return registrosModel.actualizar(id, { roles })
+}
+
 module.exports = {
   cargarMiembro,
+  asignarRol,
+  quitarRol,
+  establecerRol,
   esResponsableComunicaciones,
   esResponsableComunicacionesCiudad,
   esResponsableFinanciero,
