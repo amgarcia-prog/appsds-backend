@@ -2,11 +2,13 @@ const storageModel = require('../models/storageModel')
 const correoModel = require('../models/correoModel')
 const correos = require('../views/correos')
 const { REMITENTE, CORREO_ADMINISTRACION } = require('../config/env')
+const { limpiarRutaStorage } = require('../utils/texto')
 
 // Sube el archivo a <carpeta>/<nombre>; con nombre propio sobrescribe, si no usa la fecha actual
 async function subirArchivo(archivo, { bucket, carpeta, nombre }) {
   const ext = archivo.originalname.split('.').pop()
-  const ruta = nombre ? `${carpeta}/${nombre}` : `${carpeta}/${Date.now()}.${ext}`
+  const carpetaLimpia = limpiarRutaStorage(carpeta)
+  const ruta = nombre ? `${carpetaLimpia}/${limpiarRutaStorage(nombre)}` : `${carpetaLimpia}/${Date.now()}.${ext}`
   const { error } = await storageModel.subir(bucket, ruta, archivo.buffer, {
     contentType: archivo.mimetype,
     upsert: !!nombre,
